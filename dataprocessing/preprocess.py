@@ -3,10 +3,10 @@ import sys
 sys.path.append('.')
 
 from dataprocessing.convert_to_scaled_off import to_off
-#from dataprocessing.speed_sampling_gpu_kdtree_normal import sample_speed
+from dataprocessing.speed_sampling_gpu_kdtree_normal import sample_speed
 #from dataprocessing.speed_sampling_gpu_bvh_dual import sample_speed
 #from dataprocessing.speed_sampling_gpu_kdtree_normal import sample_speed
-from dataprocessing.speed_sampling_arm_normal import sample_speed
+# from dataprocessing.speed_sampling_arm_normal import sample_speed
 
 #import dataprocessing.voxelized_pointcloud_sampling as voxelized_pointcloud_sampling
 from glob import glob
