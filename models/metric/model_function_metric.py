@@ -32,7 +32,7 @@ torch.backends.cudnn.benchmark = True
 
 
 class Function():
-    def __init__(self, path, device, network, dim):
+    def __init__(self, path, device, network, dim,  data_path='./datasets/test/box'):
 
         # ======================= JSON Template =======================
         self.path = path
@@ -41,6 +41,7 @@ class Function():
 
         self.network = network
 
+        self.data_path = data_path
         # Pass the JSON information
         #self.Params['Device'] = device
 
@@ -341,6 +342,26 @@ class Function():
         quad1 = ax.pcolormesh(X,Y,S,vmin=0,vmax=1)
         ax.contour(X,Y,TT,np.arange(0,10,0.02), cmap='gist_heat', linewidths=0.5)#0.25
         plt.colorbar(quad1,ax=ax, pad=0.1, label='Predicted Velocity')
+
+        # ---- overlay sampled training points ----
+        try:
+            samples = np.load(self.data_path + "/sampled_points.npy")
+
+            # x0, y0 (first point)
+            x0 = samples[:,0]
+            y0 = samples[:,1]
+
+            # x1, y1 (second point)
+            x1 = samples[:,2]
+            y1 = samples[:,3]
+
+            ax.scatter(x0, y0, s=5, c='red', alpha=1.0, label="x0")
+            # ax.scatter(x1, y1, s=1.5, c='purple', alpha=0.2, label="x1")
+            ax.legend(loc="upper right")
+
+        except Exception as e:
+            print("Could not load sampled points:", e)
+
         plt.savefig(self.path+"/plots"+str(epoch)+"_"+str(alpha)+"_"+str(round(total_train_loss,4))+"_0.jpg",bbox_inches='tight')
         plt.close(fig)
         #print(TT.flatten().shape)
@@ -371,6 +392,26 @@ class Function():
         quad1 = ax.pcolormesh(X,Y,S,vmin=0,vmax=1)
         ax.contour(X,Y,TT,np.arange(0,10,0.02), cmap='gist_heat', linewidths=0.5)#0.25
         plt.colorbar(quad1,ax=ax, pad=0.1, label='Predicted Velocity')
+
+        # ---- overlay sampled training points ----
+        try:
+            samples = np.load(self.data_path + "/sampled_points.npy")
+
+            # x0, y0 (first point)
+            x0 = samples[:,0]
+            y0 = samples[:,1]
+
+            # x1, y1 (second point)
+            x1 = samples[:,2]
+            y1 = samples[:,3]
+
+            ax.scatter(x0, y0, s=5, c='red', alpha=1.0, label="x0")
+            # ax.scatter(x1, y1, s=1.5, c='purple', alpha=0.2, label="x1")
+            ax.legend(loc="upper right")
+
+        except Exception as e:
+            print("Could not load sampled points:", e)
+
         plt.savefig(self.path+"/tauplots"+str(epoch)+"_"+str(alpha)+"_"+str(round(total_train_loss,4))+"_0.jpg",bbox_inches='tight')
 
         plt.close(fig)
