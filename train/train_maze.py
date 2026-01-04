@@ -7,7 +7,7 @@ from os import path
 modelPath = './Experiments/Maze'
 
 dataPath = './datasets/test/maze'
-
+dataPath = './datasets/test/box'
 
 # #model    = md.Model(modelPath, dataPath, 2,[-0.0,-0.0], device='cuda:0')
 
@@ -16,7 +16,7 @@ dataPath = './datasets/test/maze'
 
 #dataPath = './datasets/test/maze5'
 
-model    = md.Model(modelPath, dataPath, 2,[-0.0,-0.0], device='cuda:0')
+model    = md.Model(modelPath, dataPath, 2,[0.0,-0.0], device='cuda:0')
 
 #model    = md.Model(modelPath, dataPath, 2,[-0.0,-0.0], device='cuda:0')
 #model    = md.Model(modelPath, dataPath, 2,[0.03,-0.45], device='cuda:0')
