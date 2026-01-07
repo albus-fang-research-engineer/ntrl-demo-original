@@ -11,4 +11,5 @@ __init__.pyc
 *.obj
 
 
-
+*.npy
+*.off
