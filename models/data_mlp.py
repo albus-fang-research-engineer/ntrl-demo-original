@@ -39,9 +39,9 @@ def Database(PATH):
     #s1 = sdf(p1)
     #points = np.concatinate((p0,p1),axis=1)
     #speed = np.concatinate((s0,s1),axis=1)
-    print(points.shape)
-    print(speed.shape)
-    print(normal.shape)
+    print("point shape: ", points.shape)
+    print("speed shape: ", speed.shape)
+    print("normal shape: ", normal.shape)
         #points[:,2:]=0
         #speed[:,1:]=1
     #except ValueError:
