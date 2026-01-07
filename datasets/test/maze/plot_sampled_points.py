@@ -8,8 +8,7 @@ print(points.shape)                # sanity-check (should be N x 2)
 
 # plot
 plt.figure(figsize=(6,6))
-plt.scatter(points[:,0], points[:,1], s=0.05, color='blue')
-plt.scatter(points[:,2], points[:,3], s=0.05, color='red')
+plt.scatter(points[:,0], points[:,1], s=0.05)
 plt.axis('equal')
 plt.title("Sampled 2D Points")
 plt.xlabel("x")
