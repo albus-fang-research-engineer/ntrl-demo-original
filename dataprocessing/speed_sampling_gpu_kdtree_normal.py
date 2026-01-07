@@ -156,6 +156,51 @@ def point_append_list(X_list, Y_list, N_list,
         #y0 = torch.minimum(y0,-x0[:,2])
         #y1 = torch.minimum(y1,-x1[:,2])
 
+        # -------------------------------------------------
+        # EXTRA: uniform free-space sampling for x1
+        # -------------------------------------------------
+        uniform_factor = 3
+        num_uniform = uniform_factor * x0.shape[0]   # same size as paired samples (can tune later)
+
+        # uniform samples in bounding box
+        x1_uni = torch.rand((num_uniform, 3), device=x0.device)
+        x1_uni[:,0] = x1_uni[:,0] * (bb_max[0]-bb_min[0]) + bb_min[0]
+        x1_uni[:,1] = x1_uni[:,1] * (bb_max[1]-bb_min[1]) + bb_min[1]
+        x1_uni[:,2] = x1_uni[:,2] * (bb_max[2]-bb_min[2]) + bb_min[2]
+
+        # distances/normals for these
+        d_uni, dot_uni, n_uni = point_obstacle_distance(x1_uni, kdtree, v_obs, normal_obs)
+
+        # require they are in free space
+        mask_uni = (d_uni > -offset)
+
+        x1_uni = x1_uni[mask_uni]
+        y1_uni = d_uni[mask_uni]
+        n_uni = n_uni[mask_uni]
+
+        # make lengths consistent
+        min_len = min(x1_uni.shape[0], x0.shape[0])
+
+        x1_uni = x1_uni[:min_len]
+        y1_uni = y1_uni[:min_len]
+        n_uni = n_uni[:min_len]
+
+        # concatenate original x1 (surface-band) + uniform x1
+        x1 = torch.cat([x1[:min_len], x1_uni], dim=0)
+        y1 = torch.cat([y1[:min_len], y1_uni], dim=0)
+        n1 = torch.cat([n1[:min_len], n_uni], dim=0)
+
+        # repeat x0/y0/n0 so pair structure is preserved
+        x0 = x0[:min_len].repeat(2, 1)
+        y0 = y0[:min_len].repeat(2)
+        n0 = n0[:min_len].repeat(2, 1)
+        # -------------------------------------------------
+        # -------------------------------------------------
+        # -------------------------------------------------
+
+
+
+
         x = torch.cat((x0[:,:dim],x1[:,:dim]),1)
         y = torch.cat((y0.unsqueeze(1),y1.unsqueeze(1)),1)
         n = torch.cat((n0[:,:dim],n1[:,:dim]),1)
