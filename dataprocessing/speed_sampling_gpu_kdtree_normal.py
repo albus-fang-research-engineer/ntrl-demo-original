@@ -16,6 +16,60 @@ from scipy.spatial import cKDTree
 # compilation.  We first switched to ``torch.cdist`` for simplicity, but that
 # scales quadratically with the number of points.  We now use SciPy's
 # ``cKDTree`` for efficient nearest neighbour queries on the CPU.
+def monte_carlo_speed(query_points,
+                            v_obs,
+                            normal_obs,
+                            base_kdtree,
+                            margin,
+                            offset,
+                            K=32,
+                            sigma_geom=0.01):
+    """
+    Monte Carlo speed distribution induced by uncertain obstacle geometry.
+
+    query_points : (N, dim)  CUDA tensor
+    v_obs        : (M, 3)
+    normal_obs   : (M, 3)
+    base_kdtree  : cKDTree built on v_obs
+    """
+
+    dim = query_points.shape[1]
+
+    # ---- lift to 3D if needed ----
+    if dim == 2:
+        query_points_3d = torch.cat(
+            [query_points,
+             torch.zeros(query_points.shape[0], 1,
+                         device=query_points.device,
+                         dtype=query_points.dtype)],
+            dim=1
+        )
+    else:
+        query_points_3d = query_points
+
+    all_s = []
+
+    for k in range(K):
+        # ---- sample noisy obstacle geometry ----
+        v_noisy = v_obs + sigma_geom * torch.randn_like(v_obs)
+
+        # KDTree must be built on 3D geometry
+        kdt = cKDTree(v_noisy.detach().cpu().numpy())
+
+        # compute distance under this sampled geometry
+        d, _, _ = point_obstacle_distance(query_points_3d, kdt, v_noisy, normal_obs)
+
+        # deterministic speed mapping
+        s = torch.clamp(d / margin,
+                        min=offset / margin,
+                        max=1.0)
+
+        all_s.append(s)
+
+    S = torch.stack(all_s, dim=1)   # (N,K)
+
+    return S.mean(dim=1), S.var(dim=1, unbiased=False)
+
 
 
 def point_obstacle_distance(query_points, kdtree, v_obs, normal_obs):
@@ -205,16 +259,31 @@ def point_rand_sample_bound_points(numsamples, dim,
     N = torch.cat(N_list,0)[:numsamples]
 
     sampled_points = X.detach().cpu().numpy()
-    distance = Y.detach().cpu().numpy()
+    # distance = Y.detach().cpu().numpy()
     normal = N.detach().cpu().numpy()
     
-    distance0 = distance[:,0] 
-    distance1 = distance[:,1] 
-    speed  = np.zeros((distance.shape[0],2))
-    speed[:,0] = np.clip(distance0/margin , a_min = offset/margin, a_max = 1)
-    speed[:,1] = np.clip(distance1/margin , a_min = offset/margin, a_max = 1)
-    
-    return sampled_points, speed, normal
+    # distance0 = distance[:,0] 
+    # distance1 = distance[:,1] 
+    # speed  = np.zeros((distance.shape[0],2))
+    # speed[:,0] = np.clip(distance0/margin , a_min = offset/margin, a_max = 1)
+    # speed[:,1] = np.clip(distance1/margin , a_min = offset/margin, a_max = 1)
+    # Monte-Carlo speed stats
+    x0 = X[:, :dim]
+    x1 = X[:, dim:]
+
+    s0_mu, s0_var = monte_carlo_speed(
+                        x0, v_obs, n_obs, kdtree, margin, offset,
+                        K=32, sigma_geom=0.01)
+
+    s1_mu, s1_var = monte_carlo_speed(
+                        x1, v_obs, n_obs, kdtree, margin, offset,
+                        K=32, sigma_geom=0.01)
+
+    speed_mean = torch.stack([s0_mu, s1_mu], dim=1)
+    speed_var  = torch.stack([s0_var, s1_var], dim=1)
+    speed_mean = speed_mean.detach().cpu().numpy()
+    speed_var  = speed_var.detach().cpu().numpy()
+    return sampled_points, speed_mean, speed_var, normal
 
 def sample_speed(path, numsamples, dim):
     
@@ -278,7 +347,10 @@ def sample_speed(path, numsamples, dim):
 
         start = timer()
         
-        sampled_points, speed, normal = point_rand_sample_bound_points(numsamples, dim, 
+        # sampled_points, speed, normal = point_rand_sample_bound_points(numsamples, dim, 
+        #             v_obs, n_obs, offset, margin)
+        
+        sampled_points, speed_mean, speed_var, normal = point_rand_sample_bound_points(numsamples, dim, 
                     v_obs, n_obs, offset, margin)
 
         end = timer()
@@ -302,7 +374,8 @@ def sample_speed(path, numsamples, dim):
         B = np.random.normal(0, 1, size=(3, 128))
 
         np.save('{}/sampled_points'.format(out_path),sampled_points)
-        np.save('{}/speed'.format(out_path),speed)
+        np.save('{}/speed'.format(out_path),speed_mean)
+        np.save('{}/speed_var'.format(out_path),speed_var)
         np.save('{}/normal'.format(out_path),normal)
         np.save('{}/B'.format(out_path),B)
     except Exception as err:
