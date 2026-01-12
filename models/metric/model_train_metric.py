@@ -303,7 +303,8 @@ class Model():
                     #print(wholedata[1])
                     points = data[:,:2*self.dim]#.float()#.cuda()
                     speed = data[:,2*self.dim:2*self.dim+2]#.float()#.cuda()
-                    normal = data[:,2*self.dim+2:]
+                    speed_var  = data[:, 2*self.dim + 2 : 2*self.dim + 4]
+                    normal     = data[:, 2*self.dim + 4 :]
                     #print(speed.shape)
                     speed = speed*speed*(2-speed)*(2-speed)
 

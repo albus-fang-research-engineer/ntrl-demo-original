@@ -334,7 +334,24 @@ class Function():
         TT = tt.to('cpu').data.numpy().reshape(X.shape)
         S  = ss.to('cpu').data.numpy().reshape(X.shape)
         #TAU = tau.to('cpu').data.numpy().reshape(X.shape)
+#-------------------------------------------------------
+#-------------------------------------------------------
+        mask = Y < 0
 
+        X_low  = X[mask]
+        Y_low  = Y[mask]
+        S_low  = S[mask]
+        TT_low = TT[mask]
+        np.savez(
+            self.path + f"/lower_half_debug_epoch{epoch}.npz",
+            X=X_low,
+            Y=Y_low,
+            Speed=S_low,
+            Tau=TT_low
+        )
+
+#-------------------------------------------------------
+#-------------------------------------------------------
         fig = plt.figure()
 
         ax = fig.add_subplot(111)
