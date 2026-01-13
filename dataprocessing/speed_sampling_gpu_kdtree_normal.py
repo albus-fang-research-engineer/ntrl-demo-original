@@ -340,6 +340,8 @@ def sample_speed(path, numsamples, dim):
 
         face_verts = v[f[FI], :]
         v_obs = np.sum(bary[...,np.newaxis] * face_verts, axis=1)
+        np.save(f"{out_path}/obstacle_points.npy", v_obs)
+        # np.save(f"{out_path}/obstacle_normals.npy", n_obs)
 
         face_norms = n[f[FI], :]
         #n_obs = n[FI,:]
