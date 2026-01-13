@@ -63,7 +63,8 @@ class Function():
         
         return grad_x                                                                                                    
     
-    def Loss(self, points, Yobs, normal, beta, gamma, epoch):
+    def Loss(self, points, Yobs, Yvar, normal, beta, gamma, epoch):
+
         
         start=time.time()
         tau, w, Xp = self.network.out(points)
@@ -138,7 +139,7 @@ class Function():
         tau_loss1[where_d1] = 0 
 
         tau_loss = tau_loss0+tau_loss1
-        #'''
+        '''
 
         Ypred0 = torch.sqrt(S0+1e-8)#torch.sqrt
         Ypred1 = torch.sqrt(S1+1e-8)#torch.sqrt
@@ -166,9 +167,47 @@ class Function():
         loss_weight = 1e-2
         loss0 = loss_weight*(l0_2-1)**2  #/scale#+relu_loss0#**2#+gamma*lap0#**2
         loss1 = loss_weight*(l1_2-1)**2  #/scale#+relu_loss1#**2#+gamma*lap1#**2
-        
-        T = tau[:,0] #* torch.sqrt(T0)
         diff = loss0 + loss1 
+        '''
+        # -------------------------------
+        # Mahalanobis Speed (Eikonal)
+        # -------------------------------
+        eik_weight = 1e-2
+        eps = 1e-6
+
+        gradnorm0 = torch.sqrt(S0 + eps)
+        gradnorm1 = torch.sqrt(S1 + eps)
+
+        # Prevent exploding gradient
+        Ysafe0 = torch.clamp(Yobs[:,0], min=0.05)
+        Ysafe1 = torch.clamp(Yobs[:,1], min=0.05)
+        # Residual: Y * ||∇τ|| - 1
+        eik_r0 = Ysafe0 * gradnorm0 - 1.0
+        eik_r1 = Ysafe1 * gradnorm1 - 1.0
+
+
+        # Var(1/Y) ≈ Var(Y) / Y^4
+
+
+        eik_var0 = 0.001*(Yvar[:,0] / (Ysafe0**4)).detach() + eps
+        eik_var1 = 0.001*(Yvar[:,1] / (Ysafe1**4)).detach() + eps
+
+
+        # Mahalanobis NLL
+        eik_loss0 = eik_r0**2 / eik_var0 + torch.log(eik_var0)
+        eik_loss1 = eik_r1**2 / eik_var1 + torch.log(eik_var1)
+
+        # Spatial weighting (focus near obstacles)
+        boundary_w0 = (1.001 - Yobs[:,0])
+        boundary_w1 = (1.001 - Yobs[:,1])
+
+        diff = eik_weight * (
+            boundary_w0 * eik_loss0 +
+            boundary_w1 * eik_loss1
+        )
+
+        T = tau[:,0] #* torch.sqrt(T0)
+        # diff = loss0 + loss1 
 
         normal_weight = 1e-3
 
@@ -350,6 +389,19 @@ class Function():
             Tau=TT_low
         )
 
+        mask = Y > 0
+
+        X_low  = X[mask]
+        Y_low  = Y[mask]
+        S_low  = S[mask]
+        TT_low = TT[mask]
+        np.savez(
+            self.path + f"/lower_half_debug_epoch{epoch}.npz",
+            X=X_low,
+            Y=Y_low,
+            Speed=S_low,
+            Tau=TT_low
+        )
 #-------------------------------------------------------
 #-------------------------------------------------------
         fig = plt.figure()

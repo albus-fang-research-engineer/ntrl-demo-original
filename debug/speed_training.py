@@ -20,7 +20,7 @@ sc = plt.scatter(
     c=S,
     cmap="plasma",
     norm=LogNorm(vmin=S.min(), vmax=S.max()),
-    s=500,
+    s=50,
     alpha=0.9
 )
 

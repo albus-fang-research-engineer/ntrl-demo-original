@@ -310,7 +310,7 @@ class Model():
 
                     speed=alpha*speed+1-alpha
 
-                    loss_value, loss_n, wv = self.function.Loss(points, speed, normal, beta, gamma, epoch)
+                    loss_value, loss_n, wv = self.function.Loss(points, speed, speed_var, normal, beta, gamma, epoch)
                     
                     #Lambda[indexbatch,:] = Lamb
                     t1 = time.time()
