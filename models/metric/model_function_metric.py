@@ -6,7 +6,7 @@ import time
 
 import torch
 import torch.nn.functional as F
-
+from scipy.spatial import cKDTree
 from torch.nn import Linear
 from torch import Tensor
 from torch.nn import Conv3d
@@ -54,7 +54,10 @@ class Function():
         limit = 0.5
         self.margin = limit/15.0
         self.offset = self.margin/10.0 
-    
+        obs_path = "/workspace/datasets/test/maze/obstacle_points.npy"
+        self.obs_pts = np.load(obs_path)[:, :2]
+        self.obs_kdtree = cKDTree(self.obs_pts)
+
     def gradient(self, y, x, create_graph=True):                                                               
                                                                                   
         grad_y = torch.ones_like(y)                                                                 
@@ -375,33 +378,48 @@ class Function():
         #TAU = tau.to('cpu').data.numpy().reshape(X.shape)
 #-------------------------------------------------------
 #-------------------------------------------------------
-        mask = Y < 0
+        # ----------------------------------------------------
+        # Paint obstacle buffer region as low speed
+        # ----------------------------------------------------
+        if epoch % 100 == 0:
+            grid = np.stack([X.flatten(), Y.flatten()], axis=1)
+            dists, _ = self.obs_kdtree.query(grid)
 
-        X_low  = X[mask]
-        Y_low  = Y[mask]
-        S_low  = S[mask]
-        TT_low = TT[mask]
-        np.savez(
-            self.path + f"/lower_half_debug_epoch{epoch}.npz",
-            X=X_low,
-            Y=Y_low,
-            Speed=S_low,
-            Tau=TT_low
-        )
+            r = 0.5 * self.margin    # thickness of obstacle band
 
-        mask = Y > 0
+            near = dists < r
 
-        X_low  = X[mask]
-        Y_low  = Y[mask]
-        S_low  = S[mask]
-        TT_low = TT[mask]
-        np.savez(
-            self.path + f"/lower_half_debug_epoch{epoch}.npz",
-            X=X_low,
-            Y=Y_low,
-            Speed=S_low,
-            Tau=TT_low
-        )
+            S_flat = S.flatten()
+            S_flat[near] = 0.0     # force low speed near obstacles
+            S = S_flat.reshape(S.shape)
+
+        # mask = Y < 0
+
+        # X_low  = X[mask]
+        # Y_low  = Y[mask]
+        # S_low  = S[mask]
+        # TT_low = TT[mask]
+        # np.savez(
+        #     self.path + f"/lower_half_debug_epoch{epoch}.npz",
+        #     X=X_low,
+        #     Y=Y_low,
+        #     Speed=S_low,
+        #     Tau=TT_low
+        # )
+
+        # mask = Y > 0
+
+        # X_low  = X[mask]
+        # Y_low  = Y[mask]
+        # S_low  = S[mask]
+        # TT_low = TT[mask]
+        # np.savez(
+        #     self.path + f"/lower_half_debug_epoch{epoch}.npz",
+        #     X=X_low,
+        #     Y=Y_low,
+        #     Speed=S_low,
+        #     Tau=TT_low
+        # )
 #-------------------------------------------------------
 #-------------------------------------------------------
         fig = plt.figure()
@@ -434,6 +452,21 @@ class Function():
         TT = tt.to('cpu').data.numpy().reshape(X.shape)
         S  = ss.to('cpu').data.numpy().reshape(X.shape)
         #TAU = tau.to('cpu').data.numpy().reshape(X.shape)
+        # ----------------------------------------------------
+        # Paint obstacle buffer region as low speed
+        # ----------------------------------------------------
+        if epoch % 100 == 0:
+            grid = np.stack([X.flatten(), Y.flatten()], axis=1)
+            dists, _ = self.obs_kdtree.query(grid)
+
+            r = 1 * self.margin    # thickness of obstacle band
+
+            near = dists < r
+
+            S_flat = S.flatten()
+            S_flat[near] = 0.1     # force low speed near obstacles
+            S = S_flat.reshape(S.shape)
+
 
         fig = plt.figure()
         ax = fig.add_subplot(111)
