@@ -11,10 +11,11 @@ class _numpy2dataset(torch.utils.data.Dataset):
         speed  = Variable(Tensor(speed))
         speed_var  = torch.as_tensor(speed_var,  dtype=torch.float32)
         normal  = Variable(Tensor(normal))
-        self.data=torch.cat((points,speed,speed_var,normal, normal_euclidean_var, normal_angular_var),dim=1)
-        #self.grid  = Variable(Tensor(grid))
         normal_euclidean_var = torch.as_tensor(normal_euclidean_var, dtype=torch.float32)
         normal_angular_var   = torch.as_tensor(normal_angular_var,   dtype=torch.float32)
+        self.data=torch.cat((points,speed,speed_var,normal, normal_euclidean_var, normal_angular_var),dim=1)
+        #self.grid  = Variable(Tensor(grid))
+
     def send_device(self,device):
         self.data    = self.data.to(device)
 
@@ -33,7 +34,7 @@ def Database(PATH):
     speed_var  = np.load(f"{PATH}/speed_var.npy")
     normal = np.load('{}/normal.npy'.format(PATH))#[:100000,:]
     normal_euclidean_var = np.load('{}/normal_euclidean_var.npy'.format(PATH))
-    normal_angular_var = np.load('{}/normal_ang_var.npy'.format(PATH))
+    normal_angular_var = np.load('{}/normal_angular_var.npy'.format(PATH))
     #occupancies = np.unpackbits(np.load('{}/voxelized_point_cloud_128res_20000points.npz'.format(PATH))['compressed_occupancies'])
     #input = np.reshape(occupancies, (128,)*3)
     #grid = np.array(input, dtype=np.float32)
