@@ -66,7 +66,7 @@ class Function():
         
         return grad_x                                                                                                    
     
-    def Loss(self, points, Yobs, Yvar, normal, beta, gamma, epoch):
+    def Loss(self, points, Yobs, Yvar, normal, normal_var, beta, gamma, epoch):
 
         
         start=time.time()
@@ -211,7 +211,7 @@ class Function():
 
         T = tau[:,0] #* torch.sqrt(T0)
         # diff = loss0 + loss1 
-
+        '''
         normal_weight = 1e-3
 
         normal0 = normal[:,:self.dim]
@@ -223,7 +223,49 @@ class Function():
         #print(n_loss0.shape)
         #n_loss = normal_weight*torch.sum(n_loss0,dim=1)
         n_loss = normal_weight*(torch.sum(n_loss0,dim=1)+torch.sum(n_loss1,dim=1))
-        
+        '''
+        # -------------------------------
+        # Mahalanobis normal constraint
+        # -------------------------------
+
+        normal_weight = 1e-3
+        eps = 1e-6
+
+        normal0 = normal[:, :self.dim]
+        normal1 = normal[:, self.dim:]
+
+        # Split variances
+        normal_var0 = normal_var[:, :self.dim]
+        normal_var1 = normal_var[:, self.dim:]
+
+        Yvar0 = Yvar[:, 0].unsqueeze(1)
+        Yvar1 = Yvar[:, 1].unsqueeze(1)
+
+        # Residuals: r = Y * ∇τ + n
+        r0 = Yobs[:, 0].unsqueeze(1) * DT0 + normal0
+        r1 = Yobs[:, 1].unsqueeze(1) * DT1 + normal1
+
+        # Variance propagation (diagonal covariance)
+        sigma0_sq = (Yvar0 * (DT0**2) + normal_var0).detach() + eps
+        sigma1_sq = (Yvar1 * (DT1**2) + normal_var1).detach() + eps
+
+        # Mahalanobis distance
+        mah0 = torch.sum(r0**2 / sigma0_sq, dim=1)
+        mah1 = torch.sum(r1**2 / sigma1_sq, dim=1)
+
+        # Log determinant (Gaussian NLL)
+        logdet0 = torch.sum(torch.log(sigma0_sq), dim=1)
+        logdet1 = torch.sum(torch.log(sigma1_sq), dim=1)
+
+        # Spatial weighting (same as Eikonal)
+        boundary_w0 = (1.001 - Yobs[:, 0])
+        boundary_w1 = (1.001 - Yobs[:, 1])
+
+        n_loss = normal_weight * (
+            boundary_w0 * (mah0 + logdet0) +
+            boundary_w1 * (mah1 + logdet1)
+        )
+
         #print(n_loss0)
         #T_num = T.clone.detach()+weight
         #
