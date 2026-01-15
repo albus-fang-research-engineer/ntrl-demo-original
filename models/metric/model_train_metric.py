@@ -301,16 +301,26 @@ class Model():
                     #print(indexbatch)
                     #ind, indexbatch = data
                     #print(wholedata[1])
+                    '''
                     points = data[:,:2*self.dim]#.float()#.cuda()
                     speed = data[:,2*self.dim:2*self.dim+2]#.float()#.cuda()
                     speed_var  = data[:, 2*self.dim + 2 : 2*self.dim + 4]
                     normal     = data[:, 2*self.dim + 4 :]
+                    '''
+                    d = self.dim
+
+                    points    = data[:, :2*d]
+                    speed     = data[:, 2*d : 2*d + 2]
+                    speed_var = data[:, 2*d + 2 : 2*d + 4]
+                    normal = data[:, 2*d + 4 : 2*d + 4 + 2*d]
+                    normal_euclidean_var = data[:, 2*d + 4 + 2*d : 2*d + 4 + 4*d]
+                    normal_ang_var = data[:, 2*d + 4 + 4*d : 2*d + 4 + 6*d]
                     #print(speed.shape)
                     speed = speed*speed*(2-speed)*(2-speed)
 
                     speed=alpha*speed+1-alpha
 
-                    loss_value, loss_n, wv = self.function.Loss(points, speed, speed_var, normal, beta, gamma, epoch)
+                    loss_value, loss_n, wv = self.function.Loss(points, speed, speed_var, normal, normal_euclidean_var, beta, gamma, epoch)
                     
                     #Lambda[indexbatch,:] = Lamb
                     t1 = time.time()
