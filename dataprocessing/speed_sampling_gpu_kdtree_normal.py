@@ -16,6 +16,78 @@ from scipy.spatial import cKDTree
 # compilation.  We first switched to ``torch.cdist`` for simplicity, but that
 # scales quadratically with the number of points.  We now use SciPy's
 # ``cKDTree`` for efficient nearest neighbour queries on the CPU.
+def monte_carlo_normal(query_points,
+                       v_obs,
+                       normal_obs,
+                       base_kdtree,
+                       K=32,
+                       sigma_geom=0.01,
+                       sigma_n=0.02):
+
+    dim = query_points.shape[1]
+
+    if dim == 2:
+        query_points_3d = torch.cat(
+            [query_points,
+             torch.zeros(query_points.shape[0],1,
+                         device=query_points.device,
+                         dtype=query_points.dtype)], dim=1)
+    else:
+        query_points_3d = query_points
+
+
+    q_np = query_points_3d.detach().cpu().numpy()
+    _, inds = base_kdtree.query(q_np, k=1)
+    inds = torch.tensor(inds, dtype=torch.long, device=query_points.device)
+
+    v_sel = v_obs[inds]        # (N,3)
+    n_sel = normal_obs[inds]   # (N,3)
+
+    all_n = []
+
+    for k in range(K):
+        # ---- sample noisy surface normal ----
+        n_noisy = n_sel + sigma_n * torch.randn_like(n_sel)
+
+        # ---- sample small geometric wobble (optional) ----
+        # this rotates normals slightly via tangent-plane perturbation
+        if sigma_geom > 0:
+            t = torch.randn_like(n_noisy)
+            t = t - (t * n_noisy).sum(dim=1, keepdim=True) * n_noisy   # project to tangent
+            n_noisy = n_noisy + sigma_geom * t
+
+        n_noisy = torch.nn.functional.normalize(n_noisy, dim=1)
+
+        all_n.append(n_noisy)
+
+
+        N = torch.stack(all_n, dim=1)   # (N,K,3)
+
+    # --------------------------------
+    # Mean normal
+    # --------------------------------
+    n_mean = torch.mean(N, dim=1)
+    n_mean = torch.nn.functional.normalize(n_mean, dim=1)
+
+    # --------------------------------
+    # Euclidean variance (vector)
+    # --------------------------------
+    diff = N - n_mean[:,None,:]
+    diff = diff[:, :, :dim]               # (N, K, dim)
+
+    # Euclidean variance per original coordinate
+    euclid_var = torch.mean(diff**2, dim=1)   # (N, dim)    
+    print("euclid_var", euclid_var.shape)
+    # --------------------------------
+    # Angular variance (on S^2)
+    # --------------------------------
+    cos = torch.einsum("nki,ni->nk", N, n_mean).clamp(-1.0,1.0)
+    angles = torch.acos(cos)
+    ang_var = torch.mean(angles**2, dim=1)
+
+    return n_mean, euclid_var, ang_var
+
+
 def monte_carlo_speed(query_points,
                             v_obs,
                             normal_obs,
@@ -278,12 +350,18 @@ def point_rand_sample_bound_points(numsamples, dim,
     s1_mu, s1_var = monte_carlo_speed(
                         x1, v_obs, n_obs, kdtree, margin, offset,
                         K=32, sigma_geom=0.01)
+    n0_mu, n0_evar, n0_avar = monte_carlo_normal(x0, v_obs, n_obs, kdtree)
+    n1_mu, n1_evar, n1_avar = monte_carlo_normal(x1, v_obs, n_obs, kdtree)
+
+    normal_mean = torch.cat([n0_mu[:,:dim], n1_mu[:,:dim]], dim=1)
+    normal_euclid_var = torch.cat([n0_evar, n1_evar], dim=1)
+    normal_ang_var = torch.stack([n0_avar, n1_avar], dim=1)
 
     speed_mean = torch.stack([s0_mu, s1_mu], dim=1)
     speed_var  = torch.stack([s0_var, s1_var], dim=1)
     speed_mean = speed_mean.detach().cpu().numpy()
     speed_var  = speed_var.detach().cpu().numpy()
-    return sampled_points, speed_mean, speed_var, normal
+    return sampled_points, speed_mean, speed_var, normal_mean, normal_euclid_var, normal_ang_var
 
 def sample_speed(path, numsamples, dim):
     
@@ -352,7 +430,7 @@ def sample_speed(path, numsamples, dim):
         # sampled_points, speed, normal = point_rand_sample_bound_points(numsamples, dim, 
         #             v_obs, n_obs, offset, margin)
         
-        sampled_points, speed_mean, speed_var, normal = point_rand_sample_bound_points(numsamples, dim, 
+        sampled_points, speed_mean, speed_var, normal_mean, normal_euclid_var, normal_ang_var = point_rand_sample_bound_points(numsamples, dim, 
                     v_obs, n_obs, offset, margin)
 
         end = timer()
@@ -374,11 +452,17 @@ def sample_speed(path, numsamples, dim):
         print(end-start)
 
         B = np.random.normal(0, 1, size=(3, 128))
+        normal_mean = normal_mean.detach().cpu().numpy()
+        normal_euclid_var = normal_euclid_var.detach().cpu().numpy()
+        normal_ang_var = normal_ang_var.detach().cpu().numpy()
+
 
         np.save('{}/sampled_points'.format(out_path),sampled_points)
         np.save('{}/speed'.format(out_path),speed_mean)
         np.save('{}/speed_var'.format(out_path),speed_var)
-        np.save('{}/normal'.format(out_path),normal)
+        np.save('{}/normal'.format(out_path),normal_mean)
+        np.save('{}/normal_euclidean_var'.format(out_path),normal_euclid_var)
+        np.save('{}/normal_angular_var'.format(out_path),normal_ang_var)
         np.save('{}/B'.format(out_path),B)
     except Exception as err:
         print('Error with {}: {}'.format(path, traceback.format_exc()))
