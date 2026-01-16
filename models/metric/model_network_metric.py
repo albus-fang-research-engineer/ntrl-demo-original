@@ -23,7 +23,7 @@ import matplotlib
 import matplotlib.pylab as plt
 
 from timeit import default_timer as timer
-
+from models.film import SafeFiLM
 torch.backends.cudnn.benchmark = True
 
 
@@ -88,7 +88,10 @@ class NN(torch.nn.Module):
         self.pe_gate.append(Linear(h_size,h_size))
         self.pe_gate.append(Linear(h_size,h_size))
 
-
+        self.use_film = True
+        self.ctx_dim = 4+2*self.dim
+        film_hidden=128
+        self.film = SafeFiLM(ctx_dim=self.ctx_dim, h_dim=h_size, hidden=film_hidden)
     #'''
     def init_weights(self, m):
         
@@ -121,8 +124,16 @@ class NN(torch.nn.Module):
         scale = 1 + 1e-5 - self.act(1 - 1 / absrowsum)
         #print(w.shape)
         return w * scale.unsqueeze(1) #[: , None ]
-    
-    def out(self, coords):
+    def _stack_ctx(self, ctx: torch.Tensor, size: int) -> torch.Tensor:
+        # ctx is (N, ctx_dim) for each pair; network stacks x0/x1 -> (2N, ...)
+        # if ctx.dim() != 2:
+        #     raise ValueError(f"ctx must be 2D (N, ctx_dim). Got {tuple(ctx.shape)}")
+        if ctx.shape[0] != size:
+            raise ValueError(f"ctx batch {ctx.shape[0]} != coords batch {size}")
+        if ctx.shape[1] != self.ctx_dim:
+            raise ValueError(f"ctx dim {ctx.shape[1]} != expected {self.ctx_dim}")
+        return torch.vstack((ctx, ctx))  # (2N, ctx_dim)
+    def out(self, coords, ctx=None):
         
         coords = coords.clone().detach().requires_grad_(True) # allows to take derivative w.r.t. input
         size = coords.shape[0]
@@ -173,9 +184,14 @@ class NN(torch.nn.Module):
 
             y = x@w.T+b
 
-            weight = torch.sigmoid(0.1*self.gate[ii].weight)
-
-            x  = (1-weight)*x_tmp+(weight)*torch.sin(y)
+            res = torch.sin(y)
+            if self.use_film and (ctx is not None):
+                ctx_stacked = self._stack_ctx(ctx, size)  # (2N, ctx_dim)
+                res = self.film(res, ctx_stacked)
+            weight = torch.sigmoid(0.1 * self.gate[ii].weight)
+            x = (1 - weight) * x_tmp + weight * res
+            # weight = torch.sigmoid(0.1*self.gate[ii].weight)
+            # x  = (1-weight)*x_tmp+(weight)*torch.sin(y)
             #x  = u*torch.sin(y)+v*x_tmp
             #x  = (1-weight)*x_tmp+weight*(u*torch.sin(y)+v*(1-torch.sin(y)))
             
@@ -205,8 +221,8 @@ class NN(torch.nn.Module):
         
         return x, w, coords
     
-    def forward(self, coords):
+    def forward(self, coords, ctx=None):
         coords = coords.clone().detach().requires_grad_(True) # allows to take derivative w.r.t. input
 
-        output, coords = self.out(coords)
+        output, _, coords = self.out(coords, ctx=ctx)
         return output, coords
