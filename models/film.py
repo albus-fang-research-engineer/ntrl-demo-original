@@ -42,5 +42,6 @@ class SafeFiLM(nn.Module):
 
         gamma = 1.0 + self.gamma_scale * torch.tanh(g_raw)
         beta  = self.beta_scale  * torch.tanh(b_raw)
-
+        self.gamma = gamma.detach()
+        self.beta = beta.detach()
         return gamma * h + beta

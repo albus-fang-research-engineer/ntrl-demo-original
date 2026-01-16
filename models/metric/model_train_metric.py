@@ -176,6 +176,16 @@ class Model():
         self.function = model_function.Function(self.folder, self.Params['Device'],self.network,self.dim)
 
         print('train')
+        # Persistent FiLM logs (entire training)
+        self.film_log = {
+            "epoch": [],
+            "batch": [],
+            "gamma_mean": [],
+            "gamma_std": [],
+            "beta_mean": [],
+            "beta_std": [],
+        }
+
         
         #self.load('./Experiments/Gib/Model_Epoch_05000_ValLoss_6.403462e-03.pt')
 
@@ -315,12 +325,19 @@ class Model():
                     normal = data[:, 2*d + 4 : 2*d + 4 + 2*d]
                     normal_euclidean_var = data[:, 2*d + 4 + 2*d : 2*d + 4 + 4*d]
                     normal_ang_var = data[:, 2*d + 4 + 4*d : 2*d + 4 + 6*d]
+                    ctx = self.network.build_ctx(
+                        speed,
+                        speed_var,
+                        normal_euclidean_var,
+                        normal_ang_var,
+                    )
+
                     #print(speed.shape)
                     speed = speed*speed*(2-speed)*(2-speed)
 
                     speed=alpha*speed+1-alpha
 
-                    loss_value, loss_n, wv = self.function.Loss(points, speed, speed_var, normal, normal_euclidean_var, beta, gamma, epoch)
+                    loss_value, loss_n, wv = self.function.Loss(points, speed, speed_var, normal, normal_euclidean_var, beta, gamma, epoch, ctx=ctx)
                     
                     #Lambda[indexbatch,:] = Lamb
                     t1 = time.time()
@@ -331,6 +348,18 @@ class Model():
 
                     # Update parameters
                     self.optimizer.step()
+                    if self.network.use_film:
+                        film_gamma = self.network.film.gamma.detach()
+                        film_beta  = self.network.film.beta.detach()
+
+                        self.film_log["epoch"].append(epoch)
+                        self.film_log["batch"].append(ii)
+
+                        self.film_log["gamma_mean"].append(film_gamma.mean().item())
+                        self.film_log["gamma_std"].append(film_gamma.std().item())
+                        self.film_log["beta_mean"].append(film_beta.mean().item())
+                        self.film_log["beta_std"].append(film_beta.std().item())
+
                     self.optimizer.zero_grad()
 
                     total_train_loss += loss_value.item()
@@ -409,10 +438,30 @@ class Model():
                     print("Epoch = {} -- Loss = {:.4e} -- Alpha = {:.4e}".format(
                         epoch, total_diff, alpha))
 
+
             if (epoch % self.Params['Training']['Save Every * Epoch'] == 0) or (epoch == self.Params['Training']['Number of Epochs']) or (epoch == 1):
-                self.function.plot(epoch,total_diff,alpha, self.source)
+                with torch.no_grad():
+                    speed     = self.dataset.data[:, 2*d : 2*d + 2].to(self.Params['Device'])
+                    speed_var = self.dataset.data[:, 2*d + 2 : 2*d + 4].to(self.Params['Device'])
+                    normal_ang_var = self.dataset.data[:, 2*d + 4 + 4*d : 2*d + 4 + 6*d].to(self.Params['Device'])
+
+                    ctx_inference = self.network.build_ctx(
+                        speed.mean(dim=0, keepdim=True),
+                        speed_var.mean(dim=0, keepdim=True),
+                        torch.zeros_like(speed_var[:1]),
+                        normal_ang_var.mean(dim=0, keepdim=True),
+                    ).to(self.Params['Device'])
+
+
+                self.function.plot(epoch,total_diff,alpha, self.source,ctx=ctx_inference)
                 with torch.no_grad():
                     self.save(epoch=epoch, val_loss=total_diff)
+                if self.network.use_film:            
+                    torch.save(
+                        self.film_log,
+                        f"{self.folder}/film_log.pt"
+                    )
+
         
         #points = self.dataset.data[:,:2*self.dim]
         #T, w, Xp = self.network.out(points.cuda())

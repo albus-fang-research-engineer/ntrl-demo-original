@@ -66,11 +66,11 @@ class Function():
         
         return grad_x                                                                                                    
     
-    def Loss(self, points, Yobs, Yvar, normal, normal_var, beta, gamma, epoch):
+    def Loss(self, points, Yobs, Yvar, normal, normal_var, beta, gamma, epoch, ctx=None):
 
         
         start=time.time()
-        tau, w, Xp = self.network.out(points)
+        tau, w, Xp = self.network.out(points, ctx=ctx)
         dtau = self.gradient(tau, Xp)
         end=time.time()
         
@@ -110,7 +110,7 @@ class Function():
             
             Xp_new0[:,:self.dim] = Xp_new0[:,:self.dim] - Dir0
 
-            tau_new0, w, Xp_new0 = self.network.out(Xp_new0)
+            tau_new0, w, Xp_new0 = self.network.out(Xp_new0, ctx=ctx)
             #tau_new1, w, Xp_new1 = self.network.out(Xp_new1)
             tau_new1 = length0#*1/Yobs[:,0].unsqueeze(1)
             del Xp_new0, Dir0#Xp_new1
@@ -129,7 +129,7 @@ class Function():
             Xp_new0[:,self.dim:] = Xp_new0[:,self.dim:] - Dir1
             #Xp_new[:,self.dim:]+=0.04*DT1/S1
 
-            tau_new0, w, Xp_new0 = self.network.out(Xp_new0)
+            tau_new0, w, Xp_new0 = self.network.out(Xp_new0, ctx=ctx)
             #tau_new1, w, Xp_new1 = self.network.out(Xp_new1)
             tau_new1 = length1#*1/Yobs[:,1].unsqueeze(1)
             del Xp_new0, Dir1#Xp_new1
@@ -281,21 +281,21 @@ class Function():
         
         return loss, loss_n, diff
 
-    def TravelTimes(self, Xp):
+    def TravelTimes(self, Xp, ctx=None):
      
-        tau, w, coords = self.network.out(Xp)        
+        tau, w, coords = self.network.out(Xp, ctx=ctx)        
 
         TT = tau[:,0] #* torch.sqrt(T0)
             
         return TT
 
-    def Speed(self, Xp):
+    def Speed(self, Xp, ctx=None):
 
    
 
         Xp = Xp.to(torch.device(self.device))
 
-        tau, w, Xp = self.network.out(Xp)
+        tau, w, Xp = self.network.out(Xp, ctx=ctx)
         dtau = self.gradient(tau, Xp)
         #Xp.requires_grad_()
         #tau, dtau, coords = self.network.out_grad(Xp)
@@ -327,14 +327,14 @@ class Function():
         del Xp, tau, dtau#, T0#, T1, T2, T3
         return Ypred
     
-    def Gradient(self, Xp):
+    def Gradient(self, Xp, ctx=None):
         #Xp = Xp.to(torch.device(self.device))
        
         #Xp.requires_grad_()
         
         #tau, dtau, coords = self.network.out_grad(Xp)
         #print(Xp.shape)
-        tau, w, Xp = self.network.out(Xp)
+        tau, w, Xp = self.network.out(Xp, ctx=ctx)
         dtau = self.gradient(tau, Xp)
         
         #D = Xp[:,self.dim:]-Xp[:,:self.dim]
@@ -359,7 +359,7 @@ class Function():
         
         return torch.cat((Ypred0, Ypred1),dim=1)
     
-    def plot(self,epoch,total_train_loss,alpha,source):
+    def plot(self,epoch,total_train_loss,alpha,source, ctx=None):
         limit = 0.5#0.5
         xmin     = [-limit,-limit]
         xmax     = [limit,limit]
@@ -409,10 +409,12 @@ class Function():
         XP[:,0]  = X.flatten()
         XP[:,1]  = Y.flatten()
         XP = Variable(Tensor(XP)).to(self.device)
+        if ctx is not None:
+            ctx = ctx.expand(XP.shape[0], -1)
 
         
-        tt = self.TravelTimes(XP)
-        ss = self.Speed(XP)#*5
+        tt = self.TravelTimes(XP,ctx=ctx)
+        ss = self.Speed(XP,ctx=ctx)#*5
         #tau = self.Tau(XP)
         
         TT = tt.to('cpu').data.numpy().reshape(X.shape)

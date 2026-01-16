@@ -89,7 +89,7 @@ class NN(torch.nn.Module):
         self.pe_gate.append(Linear(h_size,h_size))
 
         self.use_film = True
-        self.ctx_dim = 4+2*self.dim
+        self.ctx_dim =  6
         film_hidden=128
         self.film = SafeFiLM(ctx_dim=self.ctx_dim, h_dim=h_size, hidden=film_hidden)
     #'''
@@ -124,6 +124,40 @@ class NN(torch.nn.Module):
         scale = 1 + 1e-5 - self.act(1 - 1 / absrowsum)
         #print(w.shape)
         return w * scale.unsqueeze(1) #[: , None ]
+    
+    def build_ctx(
+            self,
+            speed: torch.Tensor,
+            speed_var: torch.Tensor,
+            normal_euclidean_var: torch.Tensor,
+            normal_ang_var: torch.Tensor,
+        ) -> torch.Tensor:
+            """
+            Build FiLM context vector.
+
+            Expected shapes:
+            speed                (N, 2)
+            speed_var            (N, 2)
+            normal_euclidean_var (N, 2)
+            normal_ang_var       (N, 2)
+            """
+            ctx = torch.cat(
+                [
+                    speed,
+                    speed_var,
+                    # normal_euclidean_var,
+                    normal_ang_var,
+                ],
+                dim=1
+            )
+
+            if ctx.shape[1] != self.ctx_dim:
+                raise ValueError(
+                    f"Context dim {ctx.shape[1]} != expected {self.ctx_dim}"
+                )
+
+            return ctx
+
     def _stack_ctx(self, ctx: torch.Tensor, size: int) -> torch.Tensor:
         # ctx is (N, ctx_dim) for each pair; network stacks x0/x1 -> (2N, ...)
         # if ctx.dim() != 2:
@@ -186,6 +220,9 @@ class NN(torch.nn.Module):
 
             res = torch.sin(y)
             if self.use_film and (ctx is not None):
+                if not hasattr(self, "_film_warned"):
+                    print("FiLM active")
+                    self._film_warned = True
                 ctx_stacked = self._stack_ctx(ctx, size)  # (2N, ctx_dim)
                 res = self.film(res, ctx_stacked)
             weight = torch.sigmoid(0.1 * self.gate[ii].weight)
