@@ -185,25 +185,29 @@ class Function():
         Ysafe0 = torch.clamp(Yobs[:,0], min=0.05)
         Ysafe1 = torch.clamp(Yobs[:,1], min=0.05)
         # Residual: Y * ||∇τ|| - 1
-        eik_r0 = Ysafe0 * gradnorm0 - 1.0
-        eik_r1 = Ysafe1 * gradnorm1 - 1.0
+        eik_r0 = torch.sqrt(Ysafe0 * gradnorm0) - 1.0
+        eik_r1 = torch.sqrt(Ysafe1 * gradnorm1) - 1.0
 
 
         # Var(1/Y) ≈ Var(Y) / Y^4
 
 
-        eik_var0 = 0.001*(Yvar[:,0] / (Ysafe0**4)).detach() + eps
-        eik_var1 = 0.001*(Yvar[:,1] / (Ysafe1**4)).detach() + eps
+        eik_var0 = 1*(Yvar[:,0] / (Ysafe0**4)).detach() + eps
+        eik_var1 = 1*(Yvar[:,1] / (Ysafe1**4)).detach() + eps
+
 
 
         # Mahalanobis NLL
         eik_loss0 = eik_r0**2 / eik_var0 + torch.log(eik_var0)
         eik_loss1 = eik_r1**2 / eik_var1 + torch.log(eik_var1)
+        eik_loss0 = eik_r0**2
+        eik_loss1 = eik_r1**2
 
         # Spatial weighting (focus near obstacles)
         boundary_w0 = (1.001 - Yobs[:,0])
         boundary_w1 = (1.001 - Yobs[:,1])
-
+        boundary_w0 = 1.0
+        boundary_w1 = 1.0
         diff = eik_weight * (
             boundary_w0 * eik_loss0 +
             boundary_w1 * eik_loss1
@@ -248,6 +252,8 @@ class Function():
         # Variance propagation (diagonal covariance)
         sigma0_sq = (Yvar0 * (DT0**2) + normal_var0).detach() + eps
         sigma1_sq = (Yvar1 * (DT1**2) + normal_var1).detach() + eps
+        sigma0_sq = torch.ones_like(r0).detach()
+        sigma1_sq = torch.ones_like(r1).detach()
 
         # Mahalanobis distance
         mah0 = torch.sum(r0**2 / sigma0_sq, dim=1)

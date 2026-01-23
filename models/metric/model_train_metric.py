@@ -188,7 +188,36 @@ class Model():
             #self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=[1000,2000], gamma=0.5)
         # Creating a sampling dataset
         self.dataset = db.Database(self.Params['DataPath'])
+        # ===== ONE-TIME DATASET SANITY CHECK =====
+        with torch.no_grad():
+            data = self.dataset.data
 
+            points = data[:, :2*self.dim]
+            speed  = data[:, 2*self.dim:2*self.dim+2]
+            normal = data[:, 2*self.dim+2:]
+
+            print("\n==== DATASET CHECK (ONCE) ====")
+            print(f"Total samples: {data.shape[0]}")
+
+            print(f"speed:  shape={speed.shape}, "
+                f"min={speed.min().item():.6e}, "
+                f"max={speed.max().item():.6e}, "
+                f"mean={speed.mean().item():.6e}, "
+                f"std={speed.std().item():.6e}")
+
+            print(f"normal: shape={normal.shape}, "
+                f"min={normal.min().item():.6e}, "
+                f"max={normal.max().item():.6e}, "
+                f"mean={normal.mean().item():.6e}, "
+                f"std={normal.std().item():.6e}")
+
+            normal_norm = torch.linalg.norm(normal, dim=1)
+            print(f"||normal||: min={normal_norm.min().item():.6e}, "
+                f"max={normal_norm.max().item():.6e}, "
+                f"mean={normal_norm.mean().item():.6e}, "
+                f"std={normal_norm.std().item():.6e}")
+
+            print("================================\n")
         len_dataset = len(self.dataset)
         n_batches = int(len(self.dataset) /
                         int(self.Params['Training']['Batch Size']) + 1)
