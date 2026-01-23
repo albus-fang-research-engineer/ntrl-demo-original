@@ -175,8 +175,8 @@ class Function():
         # -------------------------------
         # Mahalanobis Speed (Eikonal)
         # -------------------------------
-        eik_weight = 1e-2
-        eps = 1e-6
+        eik_weight = 3e-3
+        eps = 1e-8
 
         gradnorm0 = torch.sqrt(S0 + eps)
         gradnorm1 = torch.sqrt(S1 + eps)
@@ -188,24 +188,30 @@ class Function():
         eik_r0 = torch.sqrt(Ysafe0 * gradnorm0) - 1.0
         eik_r1 = torch.sqrt(Ysafe1 * gradnorm1) - 1.0
 
-
+        Yvar = torch.clamp(Yvar, min=0.0001)
         # Var(1/Y) ≈ Var(Y) / Y^4
 
 
-        eik_var0 = 1*(Yvar[:,0] / (Ysafe0**4)).detach() + eps
-        eik_var1 = 1*(Yvar[:,1] / (Ysafe1**4)).detach() + eps
+        # eik_var0 = 1*(Yvar[:,0] / (Ysafe0**4)).detach() + eps
+        # eik_var1 = 1*(Yvar[:,1] / (Ysafe1**4)).detach() + eps
+        eik_var0 = (gradnorm0 * Yvar[:,0]) / (4.0 * Ysafe0 + eps)
+        eik_var1 = (gradnorm1 * Yvar[:,1]) / (4.0 * Ysafe1 + eps)
 
+        eik_var0 = eik_var0.detach() + eps
+        eik_var1 = eik_var1.detach() + eps
+        eik_var0 = torch.clamp(eik_var0, min=1e-3)
+        eik_var1 = torch.clamp(eik_var1, min=1e-3)
 
 
         # Mahalanobis NLL
-        eik_loss0 = eik_r0**2 / eik_var0 + torch.log(eik_var0)
-        eik_loss1 = eik_r1**2 / eik_var1 + torch.log(eik_var1)
-        eik_loss0 = eik_r0**2
-        eik_loss1 = eik_r1**2
+        eik_loss0 = eik_r0**2 / eik_var0 #+ torch.log(eik_var0)
+        eik_loss1 = eik_r1**2 / eik_var1 #+ torch.log(eik_var1)
+        # eik_loss0 = eik_r0**2
+        # eik_loss1 = eik_r1**2
 
         # Spatial weighting (focus near obstacles)
-        boundary_w0 = (1.001 - Yobs[:,0])
-        boundary_w1 = (1.001 - Yobs[:,1])
+        # boundary_w0 = (1.001 - Yobs[:,0])
+        # boundary_w1 = (1.001 - Yobs[:,1])
         boundary_w0 = 1.0
         boundary_w1 = 1.0
         diff = eik_weight * (
@@ -284,6 +290,108 @@ class Function():
         loss_n = (torch.sum((diff+n_loss +tau_loss)*torch.exp(-0.5*T)))/Yobs.shape[0]#*torch.exp(-para*T)
         
         loss = beta*loss_n #+ 1e-4*(reg_tau)
+        # =======================
+        # DEBUG: Mahalanobis diagnostics
+        # =======================
+        # with torch.no_grad():
+        #     wT = torch.exp(-0.5*T)
+        #     eik = (diff * wT).mean().item()       # already includes eik_weight
+        #     nor = (n_loss * wT).mean().item()     # already includes normal_weight
+        #     td  = (tau_loss * wT).mean().item()
+        #     print(f"[epoch {epoch}] eik={eik:.3e} normal={nor:.3e} td={td:.3e} ratio_eik/others={eik/max(nor+td,1e-12):.3e}")
+        DEBUG = False
+        with torch.no_grad():
+            inv_var0 = 1.0 / eik_var0
+            inv_var1 = 1.0 / eik_var1
+
+            logvar0 = torch.log(eik_var0)
+            logvar1 = torch.log(eik_var1)
+
+            def stats(name, x):
+                return (
+                    f"{name}: "
+                    f"min={x.min().item():.2e}, "
+                    f"mean={x.mean().item():.2e}, "
+                    f"max={x.max().item():.2e}"
+                )
+            if DEBUG:
+                print("\n--- Mahalanobis SPEED diagnostics ---")
+                print(stats("eik_r0^2", eik_r0**2))
+                print(stats("eik_r1^2", eik_r1**2))
+
+                print(stats("1/eik_var0", inv_var0))
+                print(stats("1/eik_var1", inv_var1))
+
+                print(stats("log(eik_var0)", logvar0))
+                print(stats("log(eik_var1)", logvar1))
+
+                print(stats("eik_loss0", eik_loss0))
+                print(stats("eik_loss1", eik_loss1))
+
+        with torch.no_grad():
+            wT = torch.exp(-0.5*T)
+
+            eik_term = (diff * wT).mean()
+            nor_term = (n_loss * wT).mean()
+            td_term  = (tau_loss * wT).mean()
+            if DEBUG and epoch%10==0:
+                print(f"[epoch {epoch}] "
+                    f"eik={eik_term:.2e} | "
+                    f"normal={nor_term:.2e} | "
+                    f"td={td_term:.2e} | "
+                    f"ratio_eik/others={eik_term/(nor_term+td_term+1e-12):.2e}")
+
+
+        if epoch <= 1:   # only epoch 0/1
+            with torch.no_grad():
+                mask = Yvar > 0
+                var_floor = torch.quantile(Yvar[mask], 0.01)  # 1st percentile
+                print("Variance floor:", var_floor.item())
+
+                def stats(name, x):
+                    x = x.detach()
+                    return (
+                        f"{name}: "
+                        f"min={x.min().item():.3e}, "
+                        f"mean={x.mean().item():.3e}, "
+                        f"max={x.max().item():.3e}"
+                    )
+
+                print("\n===== LOSS DEBUG =====")
+                print(stats("tau", tau[:,0]))
+                print(stats("T", T))
+
+                # --- Eikonal pieces ---
+                print(stats("gradnorm0", gradnorm0))
+                print(stats("gradnorm1", gradnorm1))
+
+                print(stats("Yobs0", Yobs[:,0]))
+                print(stats("Yobs1", Yobs[:,1]))
+
+                print(stats("Yvar0", Yvar[:,0]))
+                print(stats("Yvar1", Yvar[:,1]))
+
+                print(stats("eik_r0", eik_r0))
+                print(stats("eik_r1", eik_r1))
+
+                print(stats("eik_var0", eik_var0))
+                print(stats("eik_var1", eik_var1))
+
+                print(stats("eik_loss0", eik_loss0))
+                print(stats("eik_loss1", eik_loss1))
+
+                # --- Normal term ---
+                print(stats("n_loss", n_loss))
+
+                # --- TD term ---
+                print(stats("tau_loss", tau_loss))
+
+                # --- Combined ---
+                print(stats("diff (eik)", diff))
+                print(stats("diff+n_loss+tau_loss", diff + n_loss + tau_loss))
+
+                print("======================\n")
+
         
         return loss, loss_n, diff
 
