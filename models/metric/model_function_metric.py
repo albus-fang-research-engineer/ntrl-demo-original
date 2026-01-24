@@ -64,8 +64,12 @@ class Function():
 
         grad_x = torch.autograd.grad(y, x, grad_y, only_inputs=True, retain_graph=True, create_graph=create_graph)[0]
         
-        return grad_x                                                                                                    
-    
+        return grad_x     
+          
+    def softcap_inv(self, var, w_max, eps=1e-8):
+        w = 1.0 / (var + eps)
+        return w / (1.0 + w / w_max)                                                                                         
+        
     def Loss(self, points, Yobs, Yvar, normal, normal_var, beta, gamma, epoch):
 
         
@@ -175,15 +179,15 @@ class Function():
         # -------------------------------
         # Mahalanobis Speed (Eikonal)
         # -------------------------------
-        eik_weight = 3e-3
+        eik_weight = 1e-3
         eps = 1e-8
 
         gradnorm0 = torch.sqrt(S0 + eps)
         gradnorm1 = torch.sqrt(S1 + eps)
 
         # Prevent exploding gradient
-        Ysafe0 = torch.clamp(Yobs[:,0], min=0.05)
-        Ysafe1 = torch.clamp(Yobs[:,1], min=0.05)
+        Ysafe0 = torch.clamp(Yobs[:,0], min=0.0005)
+        Ysafe1 = torch.clamp(Yobs[:,1], min=0.0005)
         # Residual: Y * ||∇τ|| - 1
         eik_r0 = torch.sqrt(Ysafe0 * gradnorm0) - 1.0
         eik_r1 = torch.sqrt(Ysafe1 * gradnorm1) - 1.0
@@ -192,20 +196,26 @@ class Function():
         # Var(1/Y) ≈ Var(Y) / Y^4
 
 
-        # eik_var0 = 1*(Yvar[:,0] / (Ysafe0**4)).detach() + eps
-        # eik_var1 = 1*(Yvar[:,1] / (Ysafe1**4)).detach() + eps
         eik_var0 = (gradnorm0 * Yvar[:,0]) / (4.0 * Ysafe0 + eps)
         eik_var1 = (gradnorm1 * Yvar[:,1]) / (4.0 * Ysafe1 + eps)
+        eik_var0 = (Yvar[:,0]) / (4.0 * Ysafe0 + eps)
+        eik_var1 = (Yvar[:,1]) / (4.0 * Ysafe1 + eps)
+        eik_var0 = 1*(Yvar[:,0] / (Ysafe0**2)).detach() + eps
+        eik_var1 = 1*(Yvar[:,1] / (Ysafe1**2)).detach() + eps
 
         eik_var0 = eik_var0.detach() + eps
         eik_var1 = eik_var1.detach() + eps
         eik_var0 = torch.clamp(eik_var0, min=1e-3)
         eik_var1 = torch.clamp(eik_var1, min=1e-3)
 
+        w0 = self.softcap_inv(eik_var0, w_max=10000)    
+        w1 = self.softcap_inv(eik_var1, w_max=200.0)  # this fixes the tail
 
+        eik_loss0 = eik_r0**2 * w0 + 0.01 * torch.log(eik_var0)
+        eik_loss1 = eik_r1**2 * w1 + 0.01 * torch.log(eik_var1)
         # Mahalanobis NLL
-        eik_loss0 = eik_r0**2 / eik_var0 #+ torch.log(eik_var0)
-        eik_loss1 = eik_r1**2 / eik_var1 #+ torch.log(eik_var1)
+        # eik_loss0 = eik_r0**2 / eik_var0 + 0.001*torch.log(eik_var0)
+        # eik_loss1 = eik_r1**2 / eik_var1 + 0.001*torch.log(eik_var1)
         # eik_loss0 = eik_r0**2
         # eik_loss1 = eik_r1**2
 
@@ -299,34 +309,7 @@ class Function():
         #     nor = (n_loss * wT).mean().item()     # already includes normal_weight
         #     td  = (tau_loss * wT).mean().item()
         #     print(f"[epoch {epoch}] eik={eik:.3e} normal={nor:.3e} td={td:.3e} ratio_eik/others={eik/max(nor+td,1e-12):.3e}")
-        DEBUG = False
-        with torch.no_grad():
-            inv_var0 = 1.0 / eik_var0
-            inv_var1 = 1.0 / eik_var1
-
-            logvar0 = torch.log(eik_var0)
-            logvar1 = torch.log(eik_var1)
-
-            def stats(name, x):
-                return (
-                    f"{name}: "
-                    f"min={x.min().item():.2e}, "
-                    f"mean={x.mean().item():.2e}, "
-                    f"max={x.max().item():.2e}"
-                )
-            if DEBUG:
-                print("\n--- Mahalanobis SPEED diagnostics ---")
-                print(stats("eik_r0^2", eik_r0**2))
-                print(stats("eik_r1^2", eik_r1**2))
-
-                print(stats("1/eik_var0", inv_var0))
-                print(stats("1/eik_var1", inv_var1))
-
-                print(stats("log(eik_var0)", logvar0))
-                print(stats("log(eik_var1)", logvar1))
-
-                print(stats("eik_loss0", eik_loss0))
-                print(stats("eik_loss1", eik_loss1))
+        DEBUG = True
 
         with torch.no_grad():
             wT = torch.exp(-0.5*T)
