@@ -68,7 +68,16 @@ class Function():
           
     def softcap_inv(self, var, w_max, eps=1e-8):
         w = 1.0 / (var + eps)
-        return w / (1.0 + w / w_max)                                                                                         
+        return w / (1.0 + w / w_max)     
+    def map_w_geo(self, w, w_low, w_high, out_min=0.1, out_max=10.0, eps=1e-12):
+        w = torch.clamp(w, min=eps)
+        z = torch.log(w)
+        z_low = torch.log(torch.tensor(w_low, device=w.device, dtype=w.dtype))
+        z_high = torch.log(torch.tensor(w_high, device=w.device, dtype=w.dtype))
+        u = (z - z_low) / (z_high - z_low)
+        u = torch.clamp(u, 0.0, 1.0)
+
+        return out_min * (out_max / out_min) ** u                                                                                    
         
     def Loss(self, points, Yobs, Yvar, normal, normal_var, beta, gamma, epoch):
 
@@ -249,7 +258,7 @@ class Function():
         # -------------------------------
 
         normal_weight = 1e-3
-        eps = 1e-6
+        eps = 1e-8
 
         normal0 = normal[:, :self.dim]
         normal1 = normal[:, self.dim:]
@@ -266,14 +275,27 @@ class Function():
         r1 = Yobs[:, 1].unsqueeze(1) * DT1 + normal1
 
         # Variance propagation (diagonal covariance)
-        sigma0_sq = (Yvar0 * (DT0**2) + normal_var0).detach() + eps
-        sigma1_sq = (Yvar1 * (DT1**2) + normal_var1).detach() + eps
-        sigma0_sq = torch.ones_like(r0).detach()
-        sigma1_sq = torch.ones_like(r1).detach()
+        # sigma0_sq = (Yvar0 * (DT0**2) + normal_var0).detach() + eps
+        # sigma1_sq = (Yvar1 * (DT1**2) + normal_var1).detach() + eps
+        sigma0_sq = (Yvar0 **2 + normal_var0).detach() + eps
+        sigma1_sq = (Yvar1 **2 + normal_var1).detach() + eps
 
-        # Mahalanobis distance
-        mah0 = torch.sum(r0**2 / sigma0_sq, dim=1)
-        mah1 = torch.sum(r1**2 / sigma1_sq, dim=1)
+        sigma0_sq = sigma0_sq*1000
+        sigma1_sq = sigma1_sq*1000
+        
+        # sigma0_sq = torch.ones_like(r0).detach()
+        # sigma1_sq = torch.ones_like(r1).detach()
+        
+        w0 = self.softcap_inv(sigma0_sq, w_max= 10e8, eps=eps)  # returns capped 1/sigma^2
+        w1 = self.softcap_inv(sigma1_sq, w_max= 10e8, eps=eps)
+
+        # s0 = self.map_w_geo(w0, w_low=0.8105, w_high=63.44)
+        w0 = self.map_w_geo(w0, w_low=0.4568, w_high=81.32, out_min=0.8, out_max=1.2)
+        w1 = self.map_w_geo(w1, w_low=0.4568, w_high=81.32, out_min=0.8, out_max=1.2)
+
+        mah0 = torch.sum(r0**2 * w0, dim=1)
+        mah1 = torch.sum(r1**2 * w1, dim=1)
+
 
         # Log determinant (Gaussian NLL)
         logdet0 = torch.sum(torch.log(sigma0_sq), dim=1)
@@ -284,8 +306,8 @@ class Function():
         boundary_w1 = (1.001 - Yobs[:, 1])
 
         n_loss = normal_weight * (
-            boundary_w0 * (mah0 + logdet0) +
-            boundary_w1 * (mah1 + logdet1)
+            boundary_w0 * (mah0 + 0.00001*logdet0) +
+            boundary_w1 * (mah1 + 0.00001*logdet1)
         )
 
         #print(n_loss0)
@@ -300,80 +322,17 @@ class Function():
         loss_n = (torch.sum((diff+n_loss +tau_loss)*torch.exp(-0.5*T)))/Yobs.shape[0]#*torch.exp(-para*T)
         
         loss = beta*loss_n #+ 1e-4*(reg_tau)
-        # =======================
-        # DEBUG: Mahalanobis diagnostics
-        # =======================
-        # with torch.no_grad():
-        #     wT = torch.exp(-0.5*T)
-        #     eik = (diff * wT).mean().item()       # already includes eik_weight
-        #     nor = (n_loss * wT).mean().item()     # already includes normal_weight
-        #     td  = (tau_loss * wT).mean().item()
-        #     print(f"[epoch {epoch}] eik={eik:.3e} normal={nor:.3e} td={td:.3e} ratio_eik/others={eik/max(nor+td,1e-12):.3e}")
-        DEBUG = True
-
         with torch.no_grad():
             wT = torch.exp(-0.5*T)
-
             eik_term = (diff * wT).mean()
             nor_term = (n_loss * wT).mean()
             td_term  = (tau_loss * wT).mean()
-            if DEBUG and epoch%10==0:
+            if True and epoch%10==0:
                 print(f"[epoch {epoch}] "
                     f"eik={eik_term:.2e} | "
                     f"normal={nor_term:.2e} | "
                     f"td={td_term:.2e} | "
                     f"ratio_eik/others={eik_term/(nor_term+td_term+1e-12):.2e}")
-
-
-        if epoch <= 1:   # only epoch 0/1
-            with torch.no_grad():
-                mask = Yvar > 0
-                var_floor = torch.quantile(Yvar[mask], 0.01)  # 1st percentile
-                print("Variance floor:", var_floor.item())
-
-                def stats(name, x):
-                    x = x.detach()
-                    return (
-                        f"{name}: "
-                        f"min={x.min().item():.3e}, "
-                        f"mean={x.mean().item():.3e}, "
-                        f"max={x.max().item():.3e}"
-                    )
-
-                print("\n===== LOSS DEBUG =====")
-                print(stats("tau", tau[:,0]))
-                print(stats("T", T))
-
-                # --- Eikonal pieces ---
-                print(stats("gradnorm0", gradnorm0))
-                print(stats("gradnorm1", gradnorm1))
-
-                print(stats("Yobs0", Yobs[:,0]))
-                print(stats("Yobs1", Yobs[:,1]))
-
-                print(stats("Yvar0", Yvar[:,0]))
-                print(stats("Yvar1", Yvar[:,1]))
-
-                print(stats("eik_r0", eik_r0))
-                print(stats("eik_r1", eik_r1))
-
-                print(stats("eik_var0", eik_var0))
-                print(stats("eik_var1", eik_var1))
-
-                print(stats("eik_loss0", eik_loss0))
-                print(stats("eik_loss1", eik_loss1))
-
-                # --- Normal term ---
-                print(stats("n_loss", n_loss))
-
-                # --- TD term ---
-                print(stats("tau_loss", tau_loss))
-
-                # --- Combined ---
-                print(stats("diff (eik)", diff))
-                print(stats("diff+n_loss+tau_loss", diff + n_loss + tau_loss))
-
-                print("======================\n")
 
         
         return loss, loss_n, diff
