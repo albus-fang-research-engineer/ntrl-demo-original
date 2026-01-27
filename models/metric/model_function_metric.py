@@ -214,14 +214,16 @@ class Function():
 
         eik_var0 = eik_var0.detach() + eps
         eik_var1 = eik_var1.detach() + eps
-        eik_var0 = torch.clamp(eik_var0, min=1e-3)
-        eik_var1 = torch.clamp(eik_var1, min=1e-3)
+        eik_var0 = torch.clamp(eik_var0, min=1e-8)
+        eik_var1 = torch.clamp(eik_var1, min=1e-8)
 
         w0 = self.softcap_inv(eik_var0, w_max=10000)    
-        w1 = self.softcap_inv(eik_var1, w_max=200.0)  # this fixes the tail
-
-        eik_loss0 = eik_r0**2 * w0 + 0.01 * torch.log(eik_var0)
-        eik_loss1 = eik_r1**2 * w1 + 0.01 * torch.log(eik_var1)
+        w1 = self.softcap_inv(eik_var1, w_max=10e8)  # this fixes the tail
+        w0 = self.map_w_geo(w0, w_low=1.36, w_high=1.0e4, out_min=0.6, out_max=5.0)
+        w1 = self.map_w_geo(w1, w_low=1.36, w_high=1.0e4, out_min=0.6, out_max=5.0)
+    
+        eik_loss0 = eik_r0**2 * w0 + 0.001 * torch.log(eik_var0)
+        eik_loss1 = eik_r1**2 * w1 + 0.001 * torch.log(eik_var1)
         # Mahalanobis NLL
         # eik_loss0 = eik_r0**2 / eik_var0 + 0.001*torch.log(eik_var0)
         # eik_loss1 = eik_r1**2 / eik_var1 + 0.001*torch.log(eik_var1)
