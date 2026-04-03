@@ -2,7 +2,10 @@ version: "3.8"
 
 services:
   ntrl-demo:
-    image: ntrl:demo
+    # image: ntrl:demo
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: ntrl-demo
     tty: true
     stdin_open: true          # like -ti
@@ -10,14 +13,16 @@ services:
     environment:
       DISPLAY: "${DISPLAY}"
       QT_X11_NO_MITSHM: "1"
+      NVIDIA_DRIVER_CAPABILITIES: all
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
-      - /home/evb_dev/Albus/ntrl-demo-original:/workspace
+      - /home/albusfang/Albus/ntrl-demo-original:/workspace
       - /usr/lib/x86_64-linux-gnu/:/glu
       # - /home/n/.local:/.local
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - capabilities: [gpu]   # like --gpus all
+    runtime: nvidia
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - capabilities: [gpu]   # like --gpus all
     restart: "no"                   # closest to --rm behavior

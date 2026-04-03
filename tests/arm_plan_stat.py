@@ -240,7 +240,7 @@ dataPath = './datasets/arm/'+ meshname
 #dataPath = './datasets/new/'
 
 womodel    = md.Model(modelPath, dataPath, 6, [0, 0.0, 0.0,0, 0.0, 0.0], device='cuda')
-pt='./Experiments/UR5/arm_09_19_01_14/Model_Epoch_01700_ValLoss_4.005805e-03.pt'
+pt='./Experiments/UR5/arm_04_03_15_51/Model_Epoch_04800_ValLoss_3.608041e-03.pt'
 print(pt)
 womodel.load(pt)#
 womodel.network.eval()
