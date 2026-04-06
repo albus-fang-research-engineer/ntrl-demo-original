@@ -295,9 +295,9 @@ p_list = FK(query_points*scale, chain, mesh_list)
 
 
 points = torch.cat(p_list,dim=1)
-
-#np.save('Evaluations/Arm/ur5_points_list.npy', query_points*scale)
-
+import os
+os.makedirs('Evaluations/Arm', exist_ok=True)
+np.save('Evaluations/Arm/ur5_joint_trajectory.npy', query_points*scale)
 
 color1 = np.random.randint(256, size=(1, 4))
 color1[0,0] = 50
@@ -331,6 +331,7 @@ path = file_path + 'UR5' + '/' + mesh_name
 
 centers = points[...,0:3]
 radii = points[...,3]
-
+np.save('Evaluations/Arm/ur5_workspace_centers.npy', centers)
+np.save('Evaluations/Arm/ur5_workspace_radii.npy', radii)
 Viz_line_pc(centers, radii, colors.reshape(-1, 4).astype(np.int64), path)
 
