@@ -26,7 +26,7 @@ RUN apt-get update && apt-get install -y \
     libgl1-mesa-glx \
     libgl1-mesa-dri \
     && rm -rf /var/lib/apt/lists/*
-RUN pip install trimesh pyglet==1.5.16 mujoco
+# RUN pip install trimesh pyglet==1.5.16 mujoco
 ENV CUDA_HOME=/usr/local/cuda
 ENV PATH=$CUDA_HOME/bin:$PATH
 ENV LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
