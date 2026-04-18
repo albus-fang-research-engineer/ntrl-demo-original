@@ -20,7 +20,12 @@ class HiddenPrints:
         sys.stdout.close()
         sys.stdout = self._original_stdout
 
-
+def write_off_vertices_only(output_file, v):
+    with open(output_file, 'w') as out:
+        out.write('OFF\n')
+        out.write(f'{len(v)} 0 0\n')
+        for vert in v:
+            out.write(f'{vert[0]} {vert[1]} {vert[2]}\n')
 def to_off(path):
 
     file_path = os.path.dirname(path)
@@ -65,14 +70,18 @@ def to_off(path):
                 v = v/(bb_max-bb_min).max()
                 print(centers)
                 print((bb_max-bb_min))
+            if data_type == 'arm':
+                # keep original robot base frame coordinates
+                return
+                # write_off_vertices_only(output_file, v)
             else:
                 centers = (bb_max+bb_min)/2.0
                 v = v-centers
                 v = v/(bb_max-bb_min).max()
                 print(centers)
                 print((bb_max-bb_min))
-                
-            igl.write_triangle_mesh(output_file, v, f) 
+            write_off_vertices_only(output_file, v)
+            # igl.write_triangle_mesh(output_file, v, f) 
 
         print('Finished: {}'.format(path))
     except:

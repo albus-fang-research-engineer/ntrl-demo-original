@@ -271,7 +271,15 @@ def arm_obstacle_distance(th_batch, chain, mesh_list, kdtree, v_obs):
 def arm_append_list(X_list, Y_list, N_list,
                     chain, mesh_list, kdtree, v_obs,
                     numsamples, dim, offset, margin):
-    
+    # Print obstacle bbox
+    print('v_obs min:', v_obs.min(dim=0).values)
+    print('v_obs max:', v_obs.max(dim=0).values)
+     # Print where robot spheres actually are at a random config
+    test_joints = torch.zeros((1, 6), dtype=torch.float32, device='cuda')
+    tg = chain.forward_kinematics(test_joints, end_only=False)
+    for name, transform in tg.items():
+        m = transform.get_matrix()
+        print(f'link {name} position at zero config: {m[0,:3,3]}')
     OutsideSize = numsamples + 2
     WholeSize = 0
 
@@ -293,10 +301,12 @@ def arm_append_list(X_list, Y_list, N_list,
         '''
 
         P  = torch.rand((int(2*numsamples),3),dtype=torch.float32, device='cuda')
-        P[:,0]=(P[:,0]*1.2+0.2)
-        P[:,1]=(P[:,1]-0.5)*1.2
-        P[:,2]=P[:,2]*1.2-0.1
-
+        # P[:,0]=(P[:,0]*1.2+0.2)
+        # P[:,1]=(P[:,1]-0.5)*1.2
+        # P[:,2]=P[:,2]*1.2-0.1
+        P[:,0] = P[:,0] * 1.1500 + (-0.4250)  # x: [-0.4250, 0.7250]
+        P[:,1] = P[:,1] * 0.6500 + 0.7250     # y: [0.7250, 1.3750]
+        P[:,2] = P[:,2] * 1.5500 + (-0.5750)  # z: [-0.5750, 0.9750]
         x0 = P
 
         a0 = -0.5*math.pi+(torch.rand((x0.shape[0],1),dtype=torch.float32, device='cuda')-0.5)*0.6*math.pi#.squeeze()
@@ -323,7 +333,7 @@ def arm_append_list(X_list, Y_list, N_list,
 
         x0 = x0[PointsInside,:]
         x1 = nP[PointsInside,:]
-
+        print('After IK + PointsInside filter:', x0.shape)
         #print(x0.shape[0])
         if(x0.shape[0]<=1):
             continue
@@ -334,7 +344,11 @@ def arm_append_list(X_list, Y_list, N_list,
         #print(torch.min(obs_distance0))
         #print(torch.max(obs_distance0))
         obs_distance0 = obs_distance0-0.01
-
+        print('obs_distance0 min:', obs_distance0.min().item())
+        print('obs_distance0 max:', obs_distance0.max().item())
+        print('obs_distance0 mean:', obs_distance0.mean().item())
+        print('any nan?', obs_distance0.isnan().any().item())
+        print('any inf?', obs_distance0.isinf().any().item())
         where_d          =  (obs_distance0 > 0) & (obs_distance0 < margin) #\
                             #& (torch.norm(normal0,dim=1) > 0.1)
         x0 = x0[where_d]
@@ -342,6 +356,7 @@ def arm_append_list(X_list, Y_list, N_list,
         y0 = obs_distance0[where_d]
         n0 = normal0[where_d]
 
+        print('After margin filter:', x0.shape) 
         th_batch1 = scale*x1
         obs_distance1, normal1 = arm_obstacle_distance(th_batch1, chain, mesh_list, kdtree, v_obs) #- 0.01
         obs_distance1 = obs_distance1-0.01
@@ -374,7 +389,7 @@ def arm_append_list(X_list, Y_list, N_list,
         y1 = y1[where0&where1]
         n0 = n0[where0&where1]
         n1 = n1[where0&where1]
-    # 
+        print('After NaN filter:', x0.shape)
 
         x = torch.cat((x0,x1),1)
         y = torch.cat((y0.unsqueeze(1),y1.unsqueeze(1)),1)
@@ -646,7 +661,7 @@ def sample_speed(path, numsamples, dim):
         #out_file = out_path + '/boundary_{}_samples.npz'.format( sigma)
 
 
-        limit = 0.5
+        limit = 0.5 * 8
         xmin=[-limit]*dim
         xmax=[limit]*dim
         velocity_max = 1
