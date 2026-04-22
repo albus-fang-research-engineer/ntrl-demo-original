@@ -98,7 +98,118 @@ def viz_sampling_debug(env_path, ee_points=None, ik_points_fk=None, chain=None, 
 
     scene.show()
 
+def viz_ik_solutions_with_arm(env_path, joint_configs, chain, mesh_list, scale, n=10):
+    """
+    Randomly select n IK solutions and visualize:
+      - Obstacle point cloud
+      - End-effector position as a cyan sphere
+      - Full arm geometry as colored bounding spheres (one color per sampled config)
 
+    Args:
+        env_path:       path to obstacle .off mesh
+        joint_configs:  (N, 6) tensor of normalized joint configs (i.e. x0/x1, pre-scaled)
+        chain:          pytorch_kinematics chain
+        mesh_list:      list of bounding sphere tensors per link (from build_chain)
+        scale:          scale factor (pi/0.5) to undo normalization before FK
+        n:              number of IK solutions to visualize
+    """
+    import trimesh
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import igl
+
+    # ------------------------------------------------------------------ #
+    # 1. Load obstacle mesh as colored point cloud
+    # ------------------------------------------------------------------ #
+    v, f = igl.read_triangle_mesh(env_path)
+    z_values = v[:, 2]
+    x_values = v[:, 0]
+    combined = (z_values + x_values) / 2
+    combined_norm = (combined - combined.min()) / (combined.max() - combined.min())
+    cmap = plt.get_cmap('viridis')
+    pc_colors = (cmap(combined_norm) * 255).astype(np.uint8)
+
+    scene = trimesh.Scene()
+    scene.add_geometry(trimesh.points.PointCloud(vertices=v, colors=pc_colors))
+
+    # ------------------------------------------------------------------ #
+    # 2. Coordinate axes
+    # ------------------------------------------------------------------ #
+    axis_length = 0.5
+    for vec, col in [([axis_length, 0, 0], [255, 0, 0, 255]),
+                     ([0, axis_length, 0], [0, 255, 0, 255]),
+                     ([0, 0, axis_length], [0, 0, 255, 255])]:
+        ax = trimesh.load_path(np.array([[0, 0, 0], vec]))
+        ax.colors = [col]
+        scene.add_geometry(ax)
+
+    # ------------------------------------------------------------------ #
+    # 3. Randomly select n configs
+    # ------------------------------------------------------------------ #
+    configs = joint_configs.detach().cpu() if hasattr(joint_configs, 'detach') else torch.tensor(joint_configs)
+    N = configs.shape[0]
+    n = min(n, N)
+    indices = torch.randperm(N)[:n]
+    selected = configs[indices]  # (n, 6)
+
+    # One distinct color per sampled config
+    color_cmap = plt.get_cmap('tab10')
+    config_colors = [(np.array(color_cmap(i % 10)) * 255).astype(np.uint8) for i in range(n)]
+
+    # ------------------------------------------------------------------ #
+    # 4. FK for each selected config — arm spheres + EE position
+    # ------------------------------------------------------------------ #
+    joints_scaled = (selected * scale).to('cuda')  # (n, 6)
+
+    with torch.no_grad():
+        # Full FK (all links) for arm sphere rendering
+        tg_batch = chain.forward_kinematics(joints_scaled, end_only=False)
+
+        # EE position
+        tg_ee = chain.forward_kinematics(joints_scaled, end_only=True)
+        ee_positions = tg_ee.get_matrix()[:, :3, 3].cpu().numpy()  # (n, 3)
+
+    all_spheres = []
+
+    for i in range(n):
+        color = config_colors[i]
+        arm_color = np.array([color[0], color[1], color[2], 160], dtype=np.uint8)
+        ee_color  = np.array([0, 220, 255, 220], dtype=np.uint8)
+
+        # -- Arm bounding spheres --
+        link_idx = 0
+        for link_name in tg_batch:
+            if link_idx > 1 and link_idx < 8:
+                ball_list = mesh_list[link_idx - 2]  # (M, 4): xyz + radius
+                m = tg_batch[link_name].get_matrix()  # (n, 4, 4)
+
+                ones = torch.ones(ball_list.shape[0], 1, device='cuda')
+                nv = torch.cat([ball_list[:, :3], ones], dim=1)  # (M, 4)
+
+                # Transform sphere centers for config i
+                m_i = m[i]                              # (4, 4)
+                p = (m_i @ nv.T).T[:, :3].cpu().numpy()  # (M, 3)
+                r = ball_list[:, 3].cpu().numpy()         # (M,)
+
+                for center, radius in zip(p, r):
+                    s = trimesh.creation.icosphere(radius=float(radius), subdivisions=2)
+                    s.apply_translation(center)
+                    s.visual.vertex_colors = np.tile(arm_color, (len(s.vertices), 1))
+                    all_spheres.append(s)
+
+            link_idx += 1
+
+        # -- EE sphere --
+        s = trimesh.creation.icosphere(radius=0.02, subdivisions=2)
+        s.apply_translation(ee_positions[i])
+        s.visual.vertex_colors = np.tile(ee_color, (len(s.vertices), 1))
+        all_spheres.append(s)
+
+    if all_spheres:
+        scene.add_geometry(trimesh.util.concatenate(all_spheres))
+
+    print(f'Visualizing {n} IK solutions with full arm geometry')
+    scene.show()
 def rot_pose(x, a, b, c):
 
     rot_pose = torch.zeros((x.shape[0],4,4),dtype=torch.float32, device='cuda')
@@ -425,13 +536,29 @@ def arm_append_list(X_list, Y_list, N_list,
             chain=chain,
             scale=scale,
         )
-        # x1
+        viz_ik_solutions_with_arm(
+            env_path="datasets/arm/UR5/fused_all_denoise_scaled.off",
+            joint_configs=x0,       # or x1 — normalized (pre-scale) joint configs
+            chain=chain,
+            mesh_list=mesh_list,
+            scale=scale,
+            n=10,
+        )
         viz_sampling_debug(
             env_path="datasets/arm/UR5/realpc_scaled.off",
             ik_points_fk=x1,
             chain=chain,
             scale=scale,
         )
+        viz_ik_solutions_with_arm(
+            env_path="datasets/arm/UR5/fused_all_denoise_scaled.off",
+            joint_configs=x1,       # or x1 — normalized (pre-scale) joint configs
+            chain=chain,
+            mesh_list=mesh_list,
+            scale=scale,
+            n=10,
+        )
+        print('After IK + PointsInside filter:', x0.shape)
         #print(x0.shape[0])
         if(x0.shape[0]<=1):
             continue
