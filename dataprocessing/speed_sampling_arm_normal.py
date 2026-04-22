@@ -537,7 +537,7 @@ def arm_append_list(X_list, Y_list, N_list,
             scale=scale,
         )
         viz_ik_solutions_with_arm(
-            env_path="datasets/arm/UR5/fused_all_denoise_scaled.off",
+            env_path="datasets/arm/UR5/realpc_scaled.off",
             joint_configs=x0,       # or x1 — normalized (pre-scale) joint configs
             chain=chain,
             mesh_list=mesh_list,
@@ -545,7 +545,7 @@ def arm_append_list(X_list, Y_list, N_list,
             n=10,
         )
         viz_ik_solutions_with_arm(
-            env_path="datasets/arm/UR5/fused_all_denoise_scaled.off",
+            env_path="datasets/arm/UR5/realpc_scaled.off",
             joint_configs=x0,       # or x1 — normalized (pre-scale) joint configs
             chain=chain,
             mesh_list=mesh_list,
@@ -559,7 +559,7 @@ def arm_append_list(X_list, Y_list, N_list,
             scale=scale,
         )
         viz_ik_solutions_with_arm(
-            env_path="datasets/arm/UR5/fused_all_denoise_scaled.off",
+            env_path="datasets/arm/UR5/realpc_scaled.off",
             joint_configs=x1,       # or x1 — normalized (pre-scale) joint configs
             chain=chain,
             mesh_list=mesh_list,
@@ -567,7 +567,7 @@ def arm_append_list(X_list, Y_list, N_list,
             n=10,
         )
         viz_ik_solutions_with_arm(
-            env_path="datasets/arm/UR5/fused_all_denoise_scaled.off",
+            env_path="datasets/arm/UR5/realpc_scaled.off",
             joint_configs=x1,       # or x1 — normalized (pre-scale) joint configs
             chain=chain,
             mesh_list=mesh_list,
