@@ -240,7 +240,7 @@ dataPath = './datasets/arm/'+ meshname
 #dataPath = './datasets/new/'
 
 womodel    = md.Model(modelPath, dataPath, 6, [0, 0.0, 0.0,0, 0.0, 0.0], device='cuda')
-pt='./Experiments/UR5/arm_04_03_15_51/Model_Epoch_04800_ValLoss_3.608041e-03.pt'
+pt='./Experiments/UR5/arm_04_22_08_00/Model_Epoch_25400_ValLoss_4.539093e-03.pt'
 print(pt)
 womodel.load(pt)#
 womodel.network.eval()
@@ -261,10 +261,11 @@ XP=torch.tensor([[0.4, -0.5, -0.35, 0.3*np.pi,0.5*np.pi,0.0,
 XP=torch.tensor([[0.2, -0.5, -1.2, 0.5*np.pi,0.5*np.pi,0.0,
                      -0.2, -0.5, -0.35, 0.2*np.pi,0.5*np.pi,0.0]]).cuda()
 
-XP=torch.tensor([[0.2, -0.7, -1.0, 0.5*np.pi,0.5*np.pi,0.0,
-                        -0.2, -0.5, -0.35, 0.2*np.pi,0.5*np.pi,0.0]]).cuda()
+XP=torch.tensor([[0.2 - np.pi/2, -0.7, -1.0, 0.5*np.pi,0.5*np.pi,0.0,
+                        -0.2 - np.pi/2, -0.5, -0.35, 0.2*np.pi,0.5*np.pi,0.0]]).cuda()
     
-
+XP = torch.tensor([[0.1 - np.pi/2, -0.88, -0.857, 0.5*np.pi, 0.5*np.pi, 0.0,
+                   -0.2 - np.pi/2, -0.5, -0.35, 0.2*np.pi, 0.5*np.pi, 0.0]]).cuda()
    
 BASE=torch.tensor([[0, -0.5*np.pi, 0.0, -0.5*np.pi,0.0,0.0,
                         0, -0.5*np.pi, 0.0, -0.5*np.pi,0.0,0.0]]).cuda()
@@ -286,10 +287,16 @@ if iter == 199:
     #continue
 
 query_points = torch.cat(point).to('cpu').data.numpy()#np.asarray(point)
+# query_points = np.load('tests/optimized_joint_trajectory.npy').astype(np.float32)
+# query_points = query_points/scale
 
+print("\nGenerated joint trajectory:")
+print("shape:", query_points.shape)
+for i, q in enumerate(query_points):
+    print(f"step {i:02d}: {q}")
 
 chain, mesh_list = build_chain()
-
+# query_points = query_points[0:6]
 p_list = FK(query_points*scale, chain, mesh_list)
 
 
@@ -297,7 +304,7 @@ p_list = FK(query_points*scale, chain, mesh_list)
 points = torch.cat(p_list,dim=1)
 import os
 os.makedirs('Evaluations/Arm', exist_ok=True)
-np.save('Evaluations/Arm/ur5_joint_trajectory.npy', query_points*scale)
+np.save('Evaluations/Arm/ur5_joint_trajectory_dense_pointcloud.npy', query_points*scale)
 
 color1 = np.random.randint(256, size=(1, 4))
 color1[0,0] = 50
@@ -326,12 +333,13 @@ points = points.detach().cpu().numpy()
 print(points.shape)
 file_path = 'datasets/arm/'
 mesh_name = 'realpc_scaled.off'
-
+# mesh_name = 'occupied_voxel_centers_scaled.off'
+mesh_name = 'fused_all_denoise_scaled.off'
 path = file_path + 'UR5' + '/' + mesh_name
 
 centers = points[...,0:3]
 radii = points[...,3]
-np.save('Evaluations/Arm/ur5_workspace_centers.npy', centers)
-np.save('Evaluations/Arm/ur5_workspace_radii.npy', radii)
+np.save('Evaluations/Arm/ur5_workspace_centers_new.npy', centers)
+np.save('Evaluations/Arm/ur5_workspace_radii_new.npy', radii)
 Viz_line_pc(centers, radii, colors.reshape(-1, 4).astype(np.int64), path)
 

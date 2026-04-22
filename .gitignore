@@ -1,1 +1,12 @@
 __pycache__
+Experiments/
+Evaluations/
+
+B.npy
+normal.npy
+sampled_points.npy
+speed.npy
+ros2bag/
+unused/
+*.off
+torch_kdtree
