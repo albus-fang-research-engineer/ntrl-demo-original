@@ -16,6 +16,88 @@ import torch_kdtree #import build_kd_tree
 from torch_IK_UR5 import torch_IK_UR5, transformRobotParameter
 
 from functorch import vmap, jacfwd
+def viz_sampling_debug(env_path, ee_points=None, ik_points_fk=None, chain=None, scale=None):
+    """
+    Visualize obstacle point cloud + end-effector samples + FK positions of IK solutions.
+    
+    Args:
+        env_path:      path to the obstacle .off mesh
+        ee_points:     (N,3) tensor - raw end-effector Cartesian samples (P before IK)
+        ik_points_fk:  (N,3) tensor - FK of IK solutions (to verify IK correctness)
+        chain:         pytorch_kinematics chain (needed to compute FK for ik_points_fk)
+        scale:         scale factor (pi/0.5) to undo normalization before FK
+    """
+    import trimesh
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import igl
+
+    # ------------------------------------------------------------------ #
+    # 1. Load obstacle mesh as colored point cloud
+    # ------------------------------------------------------------------ #
+    v, f = igl.read_triangle_mesh(env_path)
+    print('obstacle bbox:', v.min(axis=0), v.max(axis=0))
+
+    z_values = v[:, 2]
+    x_values = v[:, 0]
+    combined = (z_values + x_values) / 2
+    combined_norm = (combined - combined.min()) / (combined.max() - combined.min())
+    cmap = plt.get_cmap('viridis')
+    pc_colors = (cmap(combined_norm) * 255).astype(np.uint8)
+
+    point_cloud = trimesh.points.PointCloud(vertices=v, colors=pc_colors)
+
+    scene = trimesh.Scene()
+    scene.add_geometry(point_cloud)
+
+    # ------------------------------------------------------------------ #
+    # 2. Coordinate axes
+    # ------------------------------------------------------------------ #
+    axis_length = 0.5
+    for vec, col in [([axis_length,0,0],[255,0,0,255]),
+                     ([0,axis_length,0],[0,255,0,255]),
+                     ([0,0,axis_length],[0,0,255,255])]:
+        ax = trimesh.load_path(np.array([[0,0,0], vec]))
+        ax.colors = [col]
+        scene.add_geometry(ax)
+
+    # ------------------------------------------------------------------ #
+    # 3. End-effector Cartesian samples (P) — yellow spheres
+    # ------------------------------------------------------------------ #
+    if ee_points is not None:
+        pts = ee_points.detach().cpu().numpy() if hasattr(ee_points, 'detach') else ee_points
+        print(f'Visualizing {len(pts)} end-effector samples')
+        spheres = []
+        for pt in pts[::max(1, len(pts)//500)]:   # subsample to max ~500 spheres
+            s = trimesh.creation.icosphere(radius=0.015)
+            s.apply_translation(pt)
+            s.visual.vertex_colors = np.tile([255, 200, 0, 180], (len(s.vertices), 1))
+            spheres.append(s)
+        scene.add_geometry(trimesh.util.concatenate(spheres))
+
+    # ------------------------------------------------------------------ #
+    # 4. FK of IK solutions — verify they match the target EE positions
+    #    Pass x0 (normalized joint configs, shape (N,6)) + chain + scale
+    # ------------------------------------------------------------------ #
+    if ik_points_fk is not None and chain is not None and scale is not None:
+        joints = ik_points_fk.detach().cpu() if hasattr(ik_points_fk, 'detach') else torch.tensor(ik_points_fk)
+        joints_scaled = (joints * scale).to('cuda')
+
+        with torch.no_grad():
+            tg = chain.forward_kinematics(joints_scaled, end_only=True)
+            fk_positions = tg.get_matrix()[:, :3, 3].cpu().numpy()
+
+        print(f'Visualizing {len(fk_positions)} FK-verified IK positions')
+        spheres = []
+        for pt in fk_positions[::max(1, len(fk_positions)//500)]:
+            s = trimesh.creation.icosphere(radius=0.015)
+            s.apply_translation(pt)
+            s.visual.vertex_colors = np.tile([0, 200, 255, 180], (len(s.vertices), 1))
+            spheres.append(s)
+        scene.add_geometry(trimesh.util.concatenate(spheres))
+
+    scene.show()
+
 
 def rot_pose(x, a, b, c):
 
@@ -298,6 +380,11 @@ def arm_append_list(X_list, Y_list, N_list,
         P[:,2]=P[:,2]*1.2-0.1
 
         x0 = P
+        # ✅ CALL 1 — EE targets before IK
+        viz_sampling_debug(
+            env_path="datasets/arm/UR5/realpc_scaled.off",
+            ee_points=P,
+        )
 
         a0 = -0.5*math.pi+(torch.rand((x0.shape[0],1),dtype=torch.float32, device='cuda')-0.5)*0.6*math.pi#.squeeze()
         b0 = (torch.rand((x0.shape[0],1),dtype=torch.float32, device='cuda')-0.5)*0.6*math.pi#.squeeze()
@@ -312,6 +399,14 @@ def arm_append_list(X_list, Y_list, N_list,
         del end_pose0, t0, torch_ik, a0, b0, c0
 
         x0 = x0/scale
+         # ✅ CALL 2 — FK of IK solutions vs EE targets
+        viz_sampling_debug(
+            env_path="datasets/arm/UR5/realpc_scaled.off",
+            ee_points=P,
+            ik_points_fk=x0,
+            chain=chain,
+            scale=scale,
+        )
 
         dP = torch.rand((x0.shape[0],dim),dtype=torch.float32, device='cuda')-0.5
         rL = (torch.rand((x0.shape[0],1),dtype=torch.float32, device='cuda'))*0.5#np.sqrt(2)
@@ -323,7 +418,20 @@ def arm_append_list(X_list, Y_list, N_list,
 
         x0 = x0[PointsInside,:]
         x1 = nP[PointsInside,:]
-
+        # ✅ CALL 3 — filtered configs only
+        viz_sampling_debug(
+            env_path="datasets/arm/UR5/realpc_scaled.off",
+            ik_points_fk=x0,
+            chain=chain,
+            scale=scale,
+        )
+        # x1
+        viz_sampling_debug(
+            env_path="datasets/arm/UR5/realpc_scaled.off",
+            ik_points_fk=x1,
+            chain=chain,
+            scale=scale,
+        )
         #print(x0.shape[0])
         if(x0.shape[0]<=1):
             continue

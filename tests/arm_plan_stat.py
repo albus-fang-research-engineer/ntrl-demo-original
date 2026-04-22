@@ -241,6 +241,8 @@ dataPath = './datasets/arm/'+ meshname
 
 womodel    = md.Model(modelPath, dataPath, 6, [0, 0.0, 0.0,0, 0.0, 0.0], device='cuda')
 pt='./Experiments/UR5/arm_04_03_15_51/Model_Epoch_04800_ValLoss_3.608041e-03.pt'
+
+pt = './Experiments/UR5/arm_04_22_10_30/Model_Epoch_05000_ValLoss_3.696065e-03.pt'
 print(pt)
 womodel.load(pt)#
 womodel.network.eval()
@@ -261,7 +263,7 @@ XP=torch.tensor([[0.4, -0.5, -0.35, 0.3*np.pi,0.5*np.pi,0.0,
 XP=torch.tensor([[0.2, -0.5, -1.2, 0.5*np.pi,0.5*np.pi,0.0,
                      -0.2, -0.5, -0.35, 0.2*np.pi,0.5*np.pi,0.0]]).cuda()
 
-XP=torch.tensor([[0.2, -0.7, -1.0, 0.5*np.pi,0.5*np.pi,0.0,
+XP=torch.tensor([[0.3, -0.7, -1.0, 0.5*np.pi,0.5*np.pi,0.0,
                         -0.2, -0.5, -0.35, 0.2*np.pi,0.5*np.pi,0.0]]).cuda()
     
 
