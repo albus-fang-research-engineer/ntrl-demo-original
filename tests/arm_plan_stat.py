@@ -265,7 +265,7 @@ XP=torch.tensor([[0.2 - np.pi/2, -0.7, -1.0, 0.5*np.pi,0.5*np.pi,0.0,
                         -0.2 - np.pi/2, -0.5, -0.35, 0.2*np.pi,0.5*np.pi,0.0]]).cuda()
     
 XP = torch.tensor([[0.1 - np.pi/2, -0.88, -0.857, 0.5*np.pi, 0.5*np.pi, 0.0,
-                   -0.2 - np.pi/2, -0.5, -0.35, 0.2*np.pi, 0.5*np.pi, 0.0]]).cuda()
+                   -0.5 - np.pi/2, -0.5, -0.35, 0.2*np.pi, 0.5*np.pi, 0.0]]).cuda()
    
 BASE=torch.tensor([[0, -0.5*np.pi, 0.0, -0.5*np.pi,0.0,0.0,
                         0, -0.5*np.pi, 0.0, -0.5*np.pi,0.0,0.0]]).cuda()
