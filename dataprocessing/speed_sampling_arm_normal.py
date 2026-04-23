@@ -16,7 +16,42 @@ import torch_kdtree #import build_kd_tree
 from torch_IK_UR5 import torch_IK_UR5
 
 from functorch import vmap, jacfwd
+def viz_two_poses(XP, env_path="datasets/arm/UR5/fused_all_denoise_scaled.off"):
+    """
+    Visualize the two UR5 poses packed into XP (shape 1×12, raw radians).
+    Uses the same FK / chain / mesh_list as the rest of this file.
+    """
+    import numpy as np
 
+    scale = np.pi / 0.5                          # same scale used everywhere
+
+    # Split into two (1, 6) configs — raw radians
+    cfg_a = XP[:, :6]                            # first pose
+    cfg_b = XP[:, 6:]                            # second pose
+    joint_configs = torch.cat([cfg_a, cfg_b], dim=0)   # (2, 6)
+
+    # Normalize so viz_ik_solutions_with_arm can re-scale internally
+    joint_configs_norm = joint_configs / scale
+
+    chain, mesh_list = build_chain()
+
+    # Show EE Cartesian positions (FK of both configs)
+    viz_sampling_debug(
+        env_path=env_path,
+        ik_points_fk=joint_configs_norm,
+        chain=chain,
+        scale=scale,
+    )
+
+    # Show full arm geometry for both configs (n=2 → one color each)
+    viz_ik_solutions_with_arm(
+        env_path=env_path,
+        joint_configs=joint_configs_norm,
+        chain=chain,
+        mesh_list=mesh_list,
+        scale=scale,
+        n=2,
+    )
 def viz_sampling_debug(env_path, ee_points=None, ik_points_fk=None, chain=None, scale=None):
     """
     Visualize obstacle point cloud + end-effector samples + FK positions of IK solutions.
@@ -247,6 +282,50 @@ def build_chain():
     chain = pk.build_serial_chain_from_urdf(
         open(out_path+'/'+"ur5e.urdf").read(), end_effect)
     chain = chain.to(dtype=dtype, device=d)
+
+# ---- DEBUG: compare URDF FK vs DH FK ----
+    from math import pi, cos, sin
+    import numpy as np
+
+    def transformDHParameter_np(a, d, alpha, theta):
+        T = np.zeros((4, 4))
+        T[0,0] = cos(theta)
+        T[0,1] = -sin(theta)*cos(alpha)
+        T[0,2] = sin(theta)*sin(alpha)
+        T[0,3] = cos(theta)*a
+        T[1,0] = sin(theta)
+        T[1,1] = cos(theta)*cos(alpha)
+        T[1,2] = -cos(theta)*sin(alpha)
+        T[1,3] = sin(theta)*a
+        T[2,1] = sin(alpha)
+        T[2,2] = cos(alpha)
+        T[2,3] = d
+        T[3,3] = 1
+        return T
+
+    def transformRobotParameter_np(theta):
+        # UR5e params (matching what torch_IK_UR5 actively uses)
+        d     = [0.1625, 0, 0, 0.1333, 0.0997, 0.0996]
+        a     = [0, -0.425, -0.3922, 0, 0, 0]
+        alpha = [pi/2, 0, 0, pi/2, -pi/2, 0]
+        T = np.eye(4)
+        for i in range(6):
+            T = T @ transformDHParameter_np(a[i], d[i], alpha[i], theta[i])
+        return T
+
+    known_joints = torch.zeros((1, 6), device='cuda')
+    known_joints[0] = torch.tensor([0, -pi/2, 0, -pi/2, 0, 0])
+
+    tg = chain.forward_kinematics(known_joints, end_only=True)
+    T_urdf = tg.get_matrix()
+    print("URDF FK:\n", T_urdf[0].cpu().numpy())
+
+    T_dh = transformRobotParameter_np([0, -pi/2, 0, -pi/2, 0, 0])
+    print("DH FK:\n", T_dh)
+
+    print("Difference:\n", T_urdf[0].cpu().numpy() - T_dh)
+    # ---- END DEBUG ----
+
     th_batch = torch.rand(1, 6, device='cuda')#torch.tensor(sampled_points, device='cuda')
     tg_batch = chain.forward_kinematics(th_batch, end_only = False)
     mesh_list = []
@@ -481,7 +560,10 @@ def arm_append_list(X_list, Y_list, N_list,
         print(f'link {name} position at zero config: {m[0,:3,3]}')
     OutsideSize = numsamples + 2
     WholeSize = 0
+    XP = torch.tensor([[0.1, -0.88, -0.857, 0.5*np.pi, 0.5*np.pi, 0.0,
+                   -0.5, -0.5, -0.35, 0.2*np.pi, 0.5*np.pi, 0.0]]).cuda()
 
+    viz_two_poses(XP)
     scale = math.pi/0.5
 
     while OutsideSize > 0:
@@ -507,9 +589,9 @@ def arm_append_list(X_list, Y_list, N_list,
 
         # P[:,0] = P[:,0] * 1.1500 + (-0.4250)  # x: [-0.4250, 0.7250]
         # P[:,1] = P[:,1] * 0.6500
-        P[:,0] = P[:,0] * 0.9500 + (-0.3250) - 0.396
+        P[:,0] = P[:,0] * 0.9500 + (-0.3250) #- 0.396
         # P[:,1] = -1*(P[:,1] * 0.6500 + 0.7250 -0.5) - 0.26  # y: [0.7250, 1.3750]
-        P[:,1] = -1*(P[:,1] * 1.160 + 0.7250 - 0.5) - 0.11  # y: [-1.500, -0.366] # y: [-1.285, -0.485]
+        P[:,1] = 1*(P[:,1] * 1.160 + 0.7250 - 0.5) + 0.11  # y: [-1.500, -0.366] # y: [-1.285, -0.485]
         # P[:,2] = P[:,2] * 1.5500 + (-0.5750)  # z: [-0.5750, 0.9750]
         P[:,2] = P[:,2] * 0.9750 + 0.0000     # z: [0.0000, 0.9750]
         # P[:,2] = P[:,2] * 0.6900 + 0.2200 
@@ -557,6 +639,17 @@ def arm_append_list(X_list, Y_list, N_list,
 
         x0 = x0[PointsInside,:]
         x1 = nP[PointsInside,:]
+        # Print a few random x0 / x1 configs
+        num_to_print = min(5, x0.shape[0])
+        if num_to_print > 0:
+            rand_idx = torch.randperm(x0.shape[0], device=x0.device)[:num_to_print]
+
+        print("\n================ Random x0 / x1 samples ================\n")
+        for i, idx in enumerate(rand_idx):
+            print(f"Sample {i} (idx {idx.item()}):")
+            print("x0 =", x0[idx].detach().cpu().numpy())
+            print("x1 =", x1[idx].detach().cpu().numpy())
+            print()
         viz_sampling_debug(
             env_path="datasets/arm/UR5/fused_all_denoise_scaled.off",
             ik_points_fk=x0,    # cyan = filtered IK configs (FK'd back to Cartesian)

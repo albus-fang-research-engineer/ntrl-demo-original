@@ -115,6 +115,12 @@ class torch_IK_UR5:
 		self.flags3 = None
 
 		self.theta4 = torch.zeros((batch_size,2,2,2),device= 'cuda').float()
+		self.T_base_corr = torch.tensor([
+			[-1.,  0.,  0.,  0.],
+			[ 0., -1.,  0.,  0.],
+			[ 0.,  0.,  1.,  0.],
+			[ 0.,  0.,  0.,  1.]
+		], device='cuda').float()
 
 	def enableDebugMode(self, debug = True):
 		# This function will enable/disable debug mode
@@ -330,8 +336,17 @@ class torch_IK_UR5:
 				return
 
 	def solveIK(self,forward_kinematics):
+		T_corr = torch.zeros(
+			(forward_kinematics.shape[0], 4, 4),
+			device=forward_kinematics.device,
+			dtype=forward_kinematics.dtype
+		)
+		T_corr[:, 0, 0] = -1
+		T_corr[:, 1, 1] = -1
+		T_corr[:, 2, 2] =  1
+		T_corr[:, 3, 3] =  1
 		#tensor n*4*4
-		self.gd = forward_kinematics
+		self.gd = T_corr @ forward_kinematics
 		#print(self.gd.shape)
 		if self.debug:
 			print('Input to IK:\n', self.gd)
@@ -365,8 +380,12 @@ class torch_IK_UR5:
 		return Q
 	
 	def solveIK_one(self,forward_kinematics):
-		#tensor n*4*4
-		self.gd = forward_kinematics
+		T_corr = torch.zeros((forward_kinematics.shape[0], 4, 4), device='cuda')
+		T_corr[:, 0, 0] = -1
+		T_corr[:, 1, 1] = -1
+		T_corr[:, 2, 2] =  1
+		T_corr[:, 3, 3] =  1
+		self.gd = T_corr @ forward_kinematics
 		#print(self.gd.shape)
 		if self.debug:
 			print('Input to IK:\n', self.gd)
