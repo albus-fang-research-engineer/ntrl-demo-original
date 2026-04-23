@@ -16,6 +16,43 @@ import torch_kdtree #import build_kd_tree
 from torch_IK_UR5 import torch_IK_UR5, transformRobotParameter
 
 from functorch import vmap, jacfwd
+
+def viz_two_poses(XP, env_path="datasets/arm/UR5/realpc_scaled.off"):
+    """
+    Visualize the two UR5 poses packed into XP (shape 1×12, raw radians).
+    Uses the same FK / chain / mesh_list as the rest of this file.
+    """
+    import numpy as np
+
+    scale = np.pi / 0.5                          # same scale used everywhere
+
+    # Split into two (1, 6) configs — raw radians
+    cfg_a = XP[:, :6]                            # first pose
+    cfg_b = XP[:, 6:]                            # second pose
+    joint_configs = torch.cat([cfg_a, cfg_b], dim=0)   # (2, 6)
+
+    # Normalize so viz_ik_solutions_with_arm can re-scale internally
+    joint_configs_norm = joint_configs / scale
+
+    chain, mesh_list = build_chain()
+
+    # Show EE Cartesian positions (FK of both configs)
+    viz_sampling_debug(
+        env_path=env_path,
+        ik_points_fk=joint_configs_norm,
+        chain=chain,
+        scale=scale,
+    )
+
+    # Show full arm geometry for both configs (n=2 → one color each)
+    viz_ik_solutions_with_arm(
+        env_path=env_path,
+        joint_configs=joint_configs_norm,
+        chain=chain,
+        mesh_list=mesh_list,
+        scale=scale,
+        n=2,
+    )
 def viz_sampling_debug(env_path, ee_points=None, ik_points_fk=None, chain=None, scale=None):
     """
     Visualize obstacle point cloud + end-effector samples + FK positions of IK solutions.
@@ -489,13 +526,19 @@ def arm_append_list(X_list, Y_list, N_list,
         P[:,0]=(P[:,0]*1.2+0.2)
         P[:,1]=(P[:,1]-0.5)*1.2
         P[:,2]=P[:,2]*1.2-0.1
-
+        XP=torch.tensor([[0.3, -0.7, -1.0, 0.5*np.pi,0.5*np.pi,0.0,
+                        -0.2, -0.5, -0.35, 0.2*np.pi,0.5*np.pi,0.0]]).cuda()
+        BASE=torch.tensor([[0, -0.5*np.pi, 0.0, -0.5*np.pi,0.0,0.0,
+                        0, -0.5*np.pi, 0.0, -0.5*np.pi,0.0,0.0]]).cuda()
+        #XP = start_goal
+        XP = XP+BASE 
+        viz_two_poses(XP)
         x0 = P
         # ✅ CALL 1 — EE targets before IK
-        viz_sampling_debug(
-            env_path="datasets/arm/UR5/realpc_scaled.off",
-            ee_points=P,
-        )
+        # viz_sampling_debug(
+        #     env_path="datasets/arm/UR5/realpc_scaled.off",
+        #     ee_points=P,
+        # )
 
         a0 = -0.5*math.pi+(torch.rand((x0.shape[0],1),dtype=torch.float32, device='cuda')-0.5)*0.6*math.pi#.squeeze()
         b0 = (torch.rand((x0.shape[0],1),dtype=torch.float32, device='cuda')-0.5)*0.6*math.pi#.squeeze()
@@ -530,50 +573,50 @@ def arm_append_list(X_list, Y_list, N_list,
         x0 = x0[PointsInside,:]
         x1 = nP[PointsInside,:]
         # ✅ CALL 3 — filtered configs only
-        viz_sampling_debug(
-            env_path="datasets/arm/UR5/realpc_scaled.off",
-            ik_points_fk=x0,
-            chain=chain,
-            scale=scale,
-        )
-        viz_ik_solutions_with_arm(
-            env_path="datasets/arm/UR5/realpc_scaled.off",
-            joint_configs=x0,       # or x1 — normalized (pre-scale) joint configs
-            chain=chain,
-            mesh_list=mesh_list,
-            scale=scale,
-            n=10,
-        )
-        viz_ik_solutions_with_arm(
-            env_path="datasets/arm/UR5/realpc_scaled.off",
-            joint_configs=x0,       # or x1 — normalized (pre-scale) joint configs
-            chain=chain,
-            mesh_list=mesh_list,
-            scale=scale,
-            n=10,
-        )
-        viz_sampling_debug(
-            env_path="datasets/arm/UR5/realpc_scaled.off",
-            ik_points_fk=x1,
-            chain=chain,
-            scale=scale,
-        )
-        viz_ik_solutions_with_arm(
-            env_path="datasets/arm/UR5/realpc_scaled.off",
-            joint_configs=x1,       # or x1 — normalized (pre-scale) joint configs
-            chain=chain,
-            mesh_list=mesh_list,
-            scale=scale,
-            n=10,
-        )
-        viz_ik_solutions_with_arm(
-            env_path="datasets/arm/UR5/realpc_scaled.off",
-            joint_configs=x1,       # or x1 — normalized (pre-scale) joint configs
-            chain=chain,
-            mesh_list=mesh_list,
-            scale=scale,
-            n=10,
-        )
+        # viz_sampling_debug(
+        #     env_path="datasets/arm/UR5/realpc_scaled.off",
+        #     ik_points_fk=x0,
+        #     chain=chain,
+        #     scale=scale,
+        # )
+        # viz_ik_solutions_with_arm(
+        #     env_path="datasets/arm/UR5/realpc_scaled.off",
+        #     joint_configs=x0,       # or x1 — normalized (pre-scale) joint configs
+        #     chain=chain,
+        #     mesh_list=mesh_list,
+        #     scale=scale,
+        #     n=10,
+        # )
+        # viz_ik_solutions_with_arm(
+        #     env_path="datasets/arm/UR5/realpc_scaled.off",
+        #     joint_configs=x0,       # or x1 — normalized (pre-scale) joint configs
+        #     chain=chain,
+        #     mesh_list=mesh_list,
+        #     scale=scale,
+        #     n=10,
+        # )
+        # viz_sampling_debug(
+        #     env_path="datasets/arm/UR5/realpc_scaled.off",
+        #     ik_points_fk=x1,
+        #     chain=chain,
+        #     scale=scale,
+        # )
+        # viz_ik_solutions_with_arm(
+        #     env_path="datasets/arm/UR5/realpc_scaled.off",
+        #     joint_configs=x1,       # or x1 — normalized (pre-scale) joint configs
+        #     chain=chain,
+        #     mesh_list=mesh_list,
+        #     scale=scale,
+        #     n=10,
+        # )
+        # viz_ik_solutions_with_arm(
+        #     env_path="datasets/arm/UR5/realpc_scaled.off",
+        #     joint_configs=x1,       # or x1 — normalized (pre-scale) joint configs
+        #     chain=chain,
+        #     mesh_list=mesh_list,
+        #     scale=scale,
+        #     n=10,
+        # )
         print('After IK + PointsInside filter:', x0.shape)
         #print(x0.shape[0])
         if(x0.shape[0]<=1):
