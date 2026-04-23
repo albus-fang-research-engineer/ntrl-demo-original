@@ -552,18 +552,21 @@ def arm_append_list(X_list, Y_list, N_list,
         # P[:,2] = P[:,2] * 0.6000 + 0.3500  # z: [0.35, 0.95]
         x0 = P
 
-        XP = torch.tensor([[0.1 - np.pi/2, -0.88, -0.857, 0.5*np.pi, 0.5*np.pi, 0.0,
+        XP = torch.tensor([[0.0 - np.pi/2, -0.916, -0.857, 0.5*np.pi, 0.5*np.pi, 0.0,
                    -0.5 - np.pi/2, -0.5, -0.35, 0.2*np.pi, 0.5*np.pi, 0.0]]).cuda()
-
-        viz_two_poses(XP)
+        BASE=torch.tensor([[0, -0.5*np.pi, 0.0, -0.5*np.pi,0.0,0.0,
+                        0, -0.5*np.pi, 0.0, -0.5*np.pi,0.0,0.0]]).cuda()
+        #XP = start_goal
+        XP = XP+BASE 
+        # viz_two_poses(XP)
         print('================End-effector points being sent to IK:===================')
         print('x range:', P[:,0].min().item(), 'to', P[:,0].max().item())
         print('y range:', P[:,1].min().item(), 'to', P[:,1].max().item())
         print('z range:', P[:,2].min().item(), 'to', P[:,2].max().item())
-        viz_sampling_debug(
-            env_path="datasets/arm/UR5/fused_all_denoise_scaled.off",   # the .off obstacle path already computed in sample_speed()
-            ee_points=P,
-        )
+        # viz_sampling_debug(
+        #     env_path="datasets/arm/UR5/fused_all_denoise_scaled.off",   # the .off obstacle path already computed in sample_speed()
+        #     ee_points=P,
+        # )
         a0 = -0.5*math.pi+(torch.rand((x0.shape[0],1),dtype=torch.float32, device='cuda')-0.5)*0.6*math.pi#.squeeze()
         b0 = (torch.rand((x0.shape[0],1),dtype=torch.float32, device='cuda')-0.5)*0.6*math.pi#.squeeze()
         c0 = -0.5*math.pi+(torch.rand((x0.shape[0],1),dtype=torch.float32, device='cuda')-0.5)*0.6*math.pi#.squeeze()
@@ -598,34 +601,34 @@ def arm_append_list(X_list, Y_list, N_list,
 
         x0 = x0[PointsInside,:]
         x1 = nP[PointsInside,:]
-        viz_sampling_debug(
-            env_path="datasets/arm/UR5/fused_all_denoise_scaled.off",
-            ik_points_fk=x0,    # cyan = filtered IK configs (FK'd back to Cartesian)
-            chain=chain,
-            scale=scale,
-        )
-        viz_ik_solutions_with_arm(
-            env_path="datasets/arm/UR5/fused_all_denoise_scaled.off",
-            joint_configs=x0,       # or x1 — normalized (pre-scale) joint configs
-            chain=chain,
-            mesh_list=mesh_list,
-            scale=scale,
-            n=10,
-        )
-        viz_sampling_debug(
-            env_path="datasets/arm/UR5/fused_all_denoise_scaled.off",
-            ik_points_fk=x1,    # cyan = x1 (FK'd separately)
-            chain=chain,
-            scale=scale,
-        )
-        viz_ik_solutions_with_arm(
-            env_path="datasets/arm/UR5/fused_all_denoise_scaled.off",
-            joint_configs=x1,       # or x1 — normalized (pre-scale) joint configs
-            chain=chain,
-            mesh_list=mesh_list,
-            scale=scale,
-            n=10,
-        )
+        # viz_sampling_debug(
+        #     env_path="datasets/arm/UR5/fused_all_denoise_scaled.off",
+        #     ik_points_fk=x0,    # cyan = filtered IK configs (FK'd back to Cartesian)
+        #     chain=chain,
+        #     scale=scale,
+        # )
+        # viz_ik_solutions_with_arm(
+        #     env_path="datasets/arm/UR5/fused_all_denoise_scaled.off",
+        #     joint_configs=x0,       # or x1 — normalized (pre-scale) joint configs
+        #     chain=chain,
+        #     mesh_list=mesh_list,
+        #     scale=scale,
+        #     n=10,
+        # )
+        # viz_sampling_debug(
+        #     env_path="datasets/arm/UR5/fused_all_denoise_scaled.off",
+        #     ik_points_fk=x1,    # cyan = x1 (FK'd separately)
+        #     chain=chain,
+        #     scale=scale,
+        # )
+        # viz_ik_solutions_with_arm(
+        #     env_path="datasets/arm/UR5/fused_all_denoise_scaled.off",
+        #     joint_configs=x1,       # or x1 — normalized (pre-scale) joint configs
+        #     chain=chain,
+        #     mesh_list=mesh_list,
+        #     scale=scale,
+        #     n=10,
+        # )
         print('After IK + PointsInside filter:', x0.shape)
         #print(x0.shape[0])
         if(x0.shape[0]<=1):
@@ -648,7 +651,14 @@ def arm_append_list(X_list, Y_list, N_list,
         x1 = x1[where_d]
         y0 = obs_distance0[where_d]
         n0 = normal0[where_d]
-
+        viz_ik_solutions_with_arm(
+            env_path="datasets/arm/UR5/fused_all_denoise_scaled.off",
+            joint_configs=x0,       # or x1 — normalized (pre-scale) joint configs
+            chain=chain,
+            mesh_list=mesh_list,
+            scale=scale,
+            n=10,
+        )
         print('After margin filter:', x0.shape) 
         th_batch1 = scale*x1
         obs_distance1, normal1 = arm_obstacle_distance(th_batch1, chain, mesh_list, kdtree, v_obs) #- 0.01

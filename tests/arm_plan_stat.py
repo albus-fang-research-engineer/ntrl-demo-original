@@ -212,8 +212,18 @@ def MPPI(womodel, XP):
         cost = womodel.function.TravelTimes(XP_tmp[:,indices,:].reshape(-1,12))
         
         cost = cost.reshape(-1,2)
-        cost = 10*cost[:,0] + cost[:,1]#torch.sum(cost.reshape(-1,2),dim=1)#
-        
+        # cost = 10*cost[:,0] + cost[:,1]#torch.sum(cost.reshape(-1,2),dim=1)#
+        cost_start = cost[:,0]   # cost from start
+        cost_goal  = cost[:,1]   # cost to goal
+        cost_combined = 10*cost_start + cost_goal
+        cost = cost_combined
+        # --- Print diagnostics ---
+        print(f"[iter {iter:03d}] "
+              f"cost_start: min={cost_start.min():.4f} max={cost_start.max():.4f} mean={cost_start.mean():.4f} | "
+              f"cost_goal:  min={cost_goal.min():.4f}  max={cost_goal.max():.4f}  mean={cost_goal.mean():.4f} | "
+              f"cost_combined: min={cost_combined.min():.4f} max={cost_combined.max():.4f} | "
+              f"best_sample={cost_combined.argmin().item()} | "
+              f"dist_to_goal={torch.norm(XP[:,6:12]-XP[:,0:6]):.4f}")
         
         weight = torch.softmax(-50*cost, dim=0)
         
@@ -240,7 +250,7 @@ dataPath = './datasets/arm/'+ meshname
 #dataPath = './datasets/new/'
 
 womodel    = md.Model(modelPath, dataPath, 6, [0, 0.0, 0.0,0, 0.0, 0.0], device='cuda')
-pt='./Experiments/UR5/arm_04_22_12_10/Model_Epoch_05900_ValLoss_4.378162e-03.pt'
+pt='./Experiments/UR5/arm_04_23_09_39/Model_Epoch_02100_ValLoss_4.544527e-03.pt'
 print(pt)
 womodel.load(pt)#
 womodel.network.eval()
@@ -266,9 +276,10 @@ XP=torch.tensor([[0.2 - np.pi/2, -0.7, -1.0, 0.5*np.pi,0.5*np.pi,0.0,
     
 XP = torch.tensor([[0.1 - np.pi/2, -0.88, -0.857, 0.5*np.pi, 0.5*np.pi, 0.0,
                    -0.5 - np.pi/2, -0.5, -0.35, 0.2*np.pi, 0.5*np.pi, 0.0]]).cuda()
-   
+XP = torch.tensor([[0.0 - np.pi/2, -0.916, -0.857, 0.5*np.pi, 0.5*np.pi, 0.0,
+                    -0.66 - np.pi/2, -0.2, -0.35, 0.2*np.pi, 0.5*np.pi, 0.0]]).cuda()
 BASE=torch.tensor([[0, -0.5*np.pi, 0.0, -0.5*np.pi,0.0,0.0,
-                        0, -0.5*np.pi, 0.0, -0.5*np.pi,0.0,0.0]]).cuda()
+                    0, -0.5*np.pi, 0.0, -0.5*np.pi,0.0,0.0]]).cuda()
 #XP = start_goal
 XP = XP+BASE #Variable(Tensor(XP)).to('cuda').unsqueeze(0)
 XP = XP/scale
@@ -290,10 +301,10 @@ query_points = torch.cat(point).to('cpu').data.numpy()#np.asarray(point)
 # query_points = np.load('tests/optimized_joint_trajectory.npy').astype(np.float32)
 # query_points = query_points/scale
 
-print("\nGenerated joint trajectory:")
-print("shape:", query_points.shape)
-for i, q in enumerate(query_points):
-    print(f"step {i:02d}: {q}")
+# print("\nGenerated joint trajectory:")
+# print("shape:", query_points.shape)
+# for i, q in enumerate(query_points):
+#     print(f"step {i:02d}: {q}")
 
 chain, mesh_list = build_chain()
 # query_points = query_points[0:6]
@@ -330,7 +341,7 @@ colors = np.repeat(colors, repeats=points.shape[1], axis=1)
 '''
 #points = points.view(-1,4)
 points = points.detach().cpu().numpy()
-print(points.shape)
+# print(points.shape)
 file_path = 'datasets/arm/'
 mesh_name = 'realpc_scaled.off'
 # mesh_name = 'occupied_voxel_centers_scaled.off'
