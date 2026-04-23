@@ -212,8 +212,18 @@ def MPPI(womodel, XP):
         cost = womodel.function.TravelTimes(XP_tmp[:,indices,:].reshape(-1,12))
         
         cost = cost.reshape(-1,2)
-        cost = 10*cost[:,0] + cost[:,1]#torch.sum(cost.reshape(-1,2),dim=1)#
-        
+        # cost = 10*cost[:,0] + cost[:,1]#torch.sum(cost.reshape(-1,2),dim=1)#
+        cost_start = cost[:,0]   # cost from start
+        cost_goal  = cost[:,1]   # cost to goal
+        cost_combined = 10*cost_start + cost_goal
+        cost = cost_combined
+        # --- Print diagnostics ---
+        print(f"[iter {iter:03d}] "
+              f"cost_start: min={cost_start.min():.4f} max={cost_start.max():.4f} mean={cost_start.mean():.4f} | "
+              f"cost_goal:  min={cost_goal.min():.4f}  max={cost_goal.max():.4f}  mean={cost_goal.mean():.4f} | "
+              f"cost_combined: min={cost_combined.min():.4f} max={cost_combined.max():.4f} | "
+              f"best_sample={cost_combined.argmin().item()} | "
+              f"dist_to_goal={torch.norm(XP[:,6:12]-XP[:,0:6]):.4f}")
         
         weight = torch.softmax(-50*cost, dim=0)
         
