@@ -275,8 +275,8 @@ XP=torch.tensor([[0.2, -0.5, -1.2, 0.5*np.pi,0.5*np.pi,0.0,
 
 XP=torch.tensor([[0.3, -0.7, -1.0, 0.5*np.pi,0.5*np.pi,0.0,
                         -0.2, -0.5, -0.35, 0.2*np.pi,0.5*np.pi,0.0]]).cuda()
-# XP=torch.tensor([[0.3, -0.6, -1.0, 0.5*np.pi,0.5*np.pi,0.0,
-#                     0.3, -0.5, -0.35, 0.2*np.pi,0.5*np.pi,0.0]]).cuda()
+XP=torch.tensor([[0.3, -0.7, -1.0, 0.5*np.pi,0.5*np.pi,0.0,
+                    0.38, -0.26, -0.65, 0.2*np.pi,0.5*np.pi,0.0]]).cuda()
 
    
 BASE=torch.tensor([[0, -0.5*np.pi, 0.0, -0.5*np.pi,0.0,0.0,
@@ -299,7 +299,7 @@ if iter == 199:
     #continue
 
 query_points = torch.cat(point).to('cpu').data.numpy()#np.asarray(point)
-
+# query_points = query_points[-2:]
 
 chain, mesh_list = build_chain()
 
