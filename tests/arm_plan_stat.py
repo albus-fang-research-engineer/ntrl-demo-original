@@ -250,7 +250,9 @@ dataPath = './datasets/arm/'+ meshname
 #dataPath = './datasets/new/'
 
 womodel    = md.Model(modelPath, dataPath, 6, [0, 0.0, 0.0,0, 0.0, 0.0], device='cuda')
-pt='./Experiments/UR5/arm_04_23_09_39/Model_Epoch_02100_ValLoss_4.544527e-03.pt'
+pt='./Experiments/UR5/arm_04_23_13_11/Model_Epoch_05000_ValLoss_3.893373e-03.pt'
+pt='./Experiments/UR5/arm_04_23_19_26/Model_Epoch_01500_ValLoss_2.799422e-03.pt'
+pt='./Experiments/UR5/arm_04_24_11_23/Model_Epoch_02200_ValLoss_3.854364e-03.pt'
 print(pt)
 womodel.load(pt)#
 womodel.network.eval()
@@ -273,11 +275,30 @@ XP=torch.tensor([[0.2, -0.5, -1.2, 0.5*np.pi,0.5*np.pi,0.0,
 
 XP=torch.tensor([[0.2 - np.pi/2, -0.7, -1.0, 0.5*np.pi,0.5*np.pi,0.0,
                         -0.2 - np.pi/2, -0.5, -0.35, 0.2*np.pi,0.5*np.pi,0.0]]).cuda()
-    
-XP = torch.tensor([[0.1 - np.pi/2, -0.88, -0.857, 0.5*np.pi, 0.5*np.pi, 0.0,
-                   -0.5 - np.pi/2, -0.5, -0.35, 0.2*np.pi, 0.5*np.pi, 0.0]]).cuda()
-XP = torch.tensor([[0.0 - np.pi/2, -0.916, -0.857, 0.5*np.pi, 0.5*np.pi, 0.0,
-                    -0.66 - np.pi/2, -0.2, -0.35, 0.2*np.pi, 0.5*np.pi, 0.0]]).cuda()
+
+
+
+
+
+###########
+XP = torch.tensor([[0.2 - np.pi/2, -0.98, -0.857, 0.5*np.pi, 0.5*np.pi, 0.0,
+                   -0.46 - np.pi/2, -0.56, -0.65, 0.2*np.pi, 0.5*np.pi, 0.0]]).cuda()
+# XP = torch.tensor([[0.36 - np.pi/2, -0.98, -0.857, 0.36*np.pi, 0.5*np.pi, 0.0,
+#                    -0.1 - np.pi/2, -0.98, -0.8, 0.36*np.pi, 0.5*np.pi, 0.0]]).cuda()
+# XP = torch.tensor([[0.46 - np.pi/2, -0.916, -0.857, 0.5*np.pi, 0.5*np.pi, 0.0,
+#                     -0.66 - np.pi/2, -0.2, -0.35, 0.2*np.pi, 0.5*np.pi, 0.0]]).cuda()
+# XP = torch.tensor([[-0.08 - np.pi/2,  -0.6, -0.857, 0.5*np.pi, 0.5*np.pi, 0.0,
+#                     0.56 - np.pi/2, -0.6, -0.35, 0.2*np.pi, 0.5*np.pi, 0.0]]).cuda()
+# XP = torch.tensor([[-0.38 - np.pi/2,  -0.6, -0.857, 0.5*np.pi, 0.5*np.pi, 0.0,
+#                     0.32 - np.pi/2, -0.6, -0.56, 0.2*np.pi, 0.5*np.pi, 0.0]]).cuda()
+# XP = torch.tensor([[-0.08 - np.pi/2,  -0.6, -0.857, 0.5*np.pi, 0.5*np.pi, 0.0,
+#                     0.2 - np.pi/2, -0.6, -0.56, 0.2*np.pi, 0.5*np.pi, 0.0]]).cuda()
+# XP = torch.tensor([[-0.08 - np.pi/2,  -0.5, -0.857, 0.5*np.pi, 0.5*np.pi, 0.0,
+#                     0.566 - np.pi/2, -0.6, -0.66, 0.3+0.2*np.pi, 0.5*np.pi, 0.0]]).cuda()
+# XP = torch.tensor([[0.46 - np.pi/2, -0.916, -0.857, 0.5*np.pi, 0.5*np.pi, 0.0,
+#                     0.16 - np.pi/2, -0.896, -0.856, 0.2*np.pi, 0.5*np.pi, 0.0]]).cuda()
+# XP = torch.tensor([[-0.08 - np.pi/2,  -1.32, -0.857, 0.5*np.pi, 0.5*np.pi, 0.0,
+#                     0.56 - np.pi/2, -0.6, -0.35, 0.2*np.pi, 0.5*np.pi, 0.0]]).cuda()
 BASE=torch.tensor([[0, -0.5*np.pi, 0.0, -0.5*np.pi,0.0,0.0,
                     0, -0.5*np.pi, 0.0, -0.5*np.pi,0.0,0.0]]).cuda()
 #XP = start_goal
@@ -315,7 +336,7 @@ p_list = FK(query_points*scale, chain, mesh_list)
 points = torch.cat(p_list,dim=1)
 import os
 os.makedirs('Evaluations/Arm', exist_ok=True)
-np.save('Evaluations/Arm/ur5_joint_trajectory_dense_pointcloud.npy', query_points*scale)
+np.save('Evaluations/Arm/ur5_joint_trajectory.npy', query_points*scale)
 
 color1 = np.random.randint(256, size=(1, 4))
 color1[0,0] = 50

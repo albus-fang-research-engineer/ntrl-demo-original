@@ -126,7 +126,7 @@ def viz_sampling_debug(env_path, ee_points=None, ik_points_fk=None, chain=None, 
 
         print(f'Visualizing {len(fk_positions)} FK-verified IK positions')
         spheres = []
-        for pt in fk_positions[::max(1, len(fk_positions)//500)]:
+        for pt in fk_positions[::max(1, len(fk_positions)//1000)]:
             s = trimesh.creation.icosphere(radius=0.015)
             s.apply_translation(pt)
             s.visual.vertex_colors = np.tile([0, 200, 255, 180], (len(s.vertices), 1))
@@ -559,10 +559,10 @@ def arm_append_list(X_list, Y_list, N_list,
         #XP = start_goal
         XP = XP+BASE 
         # viz_two_poses(XP)
-        print('================End-effector points being sent to IK:===================')
-        print('x range:', P[:,0].min().item(), 'to', P[:,0].max().item())
-        print('y range:', P[:,1].min().item(), 'to', P[:,1].max().item())
-        print('z range:', P[:,2].min().item(), 'to', P[:,2].max().item())
+        # print('================End-effector points being sent to IK:===================')
+        # print('x range:', P[:,0].min().item(), 'to', P[:,0].max().item())
+        # print('y range:', P[:,1].min().item(), 'to', P[:,1].max().item())
+        # print('z range:', P[:,2].min().item(), 'to', P[:,2].max().item())
         # viz_sampling_debug(
         #     env_path="datasets/arm/UR5/fused_all_denoise_scaled.off",   # the .off obstacle path already computed in sample_speed()
         #     ee_points=P,
@@ -584,13 +584,13 @@ def arm_append_list(X_list, Y_list, N_list,
         del end_pose0, t0, torch_ik, a0, b0, c0
 
         x0 = x0/scale
-        viz_sampling_debug(
-            env_path="datasets/arm/UR5/fused_all_denoise_scaled.off",
-            ee_points=P,
-            ik_points_fk=x0,
-            chain=chain,
-            scale=scale,
-        )
+        # viz_sampling_debug(
+        #     env_path="datasets/arm/UR5/fused_all_denoise_scaled.off",
+        #     ee_points=P,
+        #     ik_points_fk=x0,
+        #     chain=chain,
+        #     scale=scale,
+        # )
         dP = torch.rand((x0.shape[0],dim),dtype=torch.float32, device='cuda')-0.5
         rL = (torch.rand((x0.shape[0],1),dtype=torch.float32, device='cuda'))*0.5#np.sqrt(2)
         nP = x0 + torch.nn.functional.normalize(dP,dim=1)*rL
@@ -651,14 +651,14 @@ def arm_append_list(X_list, Y_list, N_list,
         x1 = x1[where_d]
         y0 = obs_distance0[where_d]
         n0 = normal0[where_d]
-        viz_ik_solutions_with_arm(
-            env_path="datasets/arm/UR5/fused_all_denoise_scaled.off",
-            joint_configs=x0,       # or x1 — normalized (pre-scale) joint configs
-            chain=chain,
-            mesh_list=mesh_list,
-            scale=scale,
-            n=10,
-        )
+        # viz_ik_solutions_with_arm(
+        #     env_path="datasets/arm/UR5/fused_all_denoise_scaled.off",
+        #     joint_configs=x0,       # or x1 — normalized (pre-scale) joint configs
+        #     chain=chain,
+        #     mesh_list=mesh_list,
+        #     scale=scale,
+        #     n=10,
+        # )
         print('After margin filter:', x0.shape) 
         th_batch1 = scale*x1
         obs_distance1, normal1 = arm_obstacle_distance(th_batch1, chain, mesh_list, kdtree, v_obs) #- 0.01
@@ -693,6 +693,40 @@ def arm_append_list(X_list, Y_list, N_list,
         n0 = n0[where0&where1]
         n1 = n1[where0&where1]
         print('After NaN filter:', x0.shape)
+        num_to_print = min(10, x0.shape[0])
+
+        print("===== Final surviving configurations =====")
+        for i in range(num_to_print):
+            print(f"Sample {i}:")
+            print("x0 =", (x0[i] * scale).detach().cpu().numpy())  # radians
+            print("x1 =", (x1[i] * scale).detach().cpu().numpy())  # radians
+            print("y0 =", y0[i].item())
+            print("y1 =", y1[i].item())
+            print()
+                # ---- Visualize surviving EE positions (cyan) ----
+        viz_sampling_debug(
+            env_path="datasets/arm/UR5/fused_all_denoise_scaled.off",
+            ik_points_fk=x0,   # normalized configs → FK'd to Cartesian inside
+            chain=chain,
+            scale=scale,
+        )
+        # ---- Visualize random configs alongside XP+BASE ----
+        # XP is already computed above as XP = XP + BASE (shape 1x12, in radians)
+        xp_a_norm = XP[:, :6] / scale   # first pose,  (1, 6)
+        xp_b_norm = XP[:, 6:] / scale   # second pose, (1, 6)
+
+        # Stack: XP pose A, XP pose B, then up to num_to_print random x0s
+        all_configs = torch.cat([xp_a_norm, xp_b_norm, x0[:num_to_print]], dim=0)
+
+        # print(f"Visualizing 2 XP+BASE configs (index 0,1) + {num_to_print} random x0 configs")
+        # viz_ik_solutions_with_arm(
+        #     env_path="datasets/arm/UR5/fused_all_denoise_scaled.off",
+        #     joint_configs=all_configs,   # (2 + num_to_print, 6)
+        #     chain=chain,
+        #     mesh_list=mesh_list,
+        #     scale=scale,
+        #     n=all_configs.shape[0],      # show all, no random subsampling
+        # )
 
         x = torch.cat((x0,x1),1)
         y = torch.cat((y0.unsqueeze(1),y1.unsqueeze(1)),1)
@@ -964,7 +998,7 @@ def sample_speed(path, numsamples, dim):
         #out_file = out_path + '/boundary_{}_samples.npz'.format( sigma)
 
 
-        limit = 0.5
+        limit = 0.5*1.2
         xmin=[-limit]*dim
         xmax=[limit]*dim
         velocity_max = 1
