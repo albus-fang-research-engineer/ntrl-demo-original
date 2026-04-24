@@ -260,6 +260,15 @@ def mppi(model, XP: torch.Tensor):
 #  Main
 # ================================================================== #
 def main():
+    # ── reproducibility ──────────────────────────────────────────────
+    SEED = 42
+    random.seed(SEED)
+    np.random.seed(SEED)
+    torch.manual_seed(SEED)
+    torch.cuda.manual_seed_all(SEED)
+    # optional: makes CuDNN deterministic (slower)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark     = False
     print('=== Loading model …')
     model = md.Model(MODEL_PATH, DATA_PATH, 6,
                      [0]*6, device='cuda')
@@ -317,6 +326,7 @@ def main():
               f'dist={final_dist:.4f}  t={elapsed:.2f}s  [{status}]')
 
         results.append({
+            'pair_idx':    i, 
             'start_norm':  starts[i].cpu().numpy(),
             'goal_norm':   goals[i].cpu().numpy(),
             'path_norm':   waypoints,
@@ -327,13 +337,71 @@ def main():
         })
 
         out_path = os.path.join(OUTPUT_DIR, f'path_{i:03d}.npy')
-        np.save(out_path, waypoints_rad)
-
+        # np.save(out_path, waypoints_rad)
+        if success:
+            out_path = os.path.join(OUTPUT_DIR, f'path_{i:03d}.npy')
+            np.save(out_path, waypoints_rad)
     # ---------------------------------------------------------------- #
     # Summary
     # ---------------------------------------------------------------- #
     print(f'\n=== Done. Success: {success_count}/{NUM_PAIRS} '
           f'({100*success_count/NUM_PAIRS:.1f}%)')
+    
+    # ---------------------------------------------------------------- #
+    # Collision rate over finished (converged) trajectories
+    # ---------------------------------------------------------------- #
+    finished = [r for r in results if r['success']]
+    print(f'\n=== Computing collision rate on {len(finished)} finished trajectories …')
+
+    total_waypoints   = 0
+    colliding_waypoints = 0
+    colliding_paths   = 0
+
+    # for r in finished:
+    #     # path_norm is (T, 6) — already normalised
+    #     waypoints = torch.tensor(r['path_norm'], dtype=torch.float32, device='cuda')
+
+    #     dist = arm_collision_distance(waypoints, chain, mesh_list, kdtree)  # (T,)
+    #     dist = dist #- OFFSET + 0.002  # apply safety offset, same as during sampling
+
+    #     in_collision = dist <= 0  # True where arm penetrates obstacle
+
+    #     n_col = int(in_collision.sum().item())
+    #     colliding_waypoints += n_col
+    #     total_waypoints     += waypoints.shape[0]
+
+    #     if n_col > 0:
+    #         colliding_paths += 1
+    for i, r in enumerate(finished):
+        waypoints = torch.tensor(r['path_norm'], dtype=torch.float32, device='cuda')
+
+        dist = arm_collision_distance(waypoints, chain, mesh_list, kdtree)
+        dist = dist #- OFFSET
+
+        in_collision = dist <= 0
+
+        n_col = int(in_collision.sum().item())
+        colliding_waypoints += n_col
+        total_waypoints     += waypoints.shape[0]
+
+        if n_col > 0:
+            colliding_paths += 1
+            # Which waypoint indices are in collision
+            col_indices = in_collision.nonzero(as_tuple=True)[0].tolist()
+            print(f'  Trajectory {i:03d} (pair index {r["pair_idx"]:03d}): '
+                f'{n_col} colliding waypoint(s) at steps {col_indices}')
+            col_path = os.path.join(OUTPUT_DIR, f'path_{r["pair_idx"]:03d}_collision.npy')
+            np.save(col_path, r['path_rad'])
+    waypoint_collision_rate = colliding_waypoints / total_waypoints
+    path_collision_rate     = colliding_paths     / len(finished)
+
+    print(f'  Finished trajectories : {len(finished)}')
+    print(f'  Total waypoints       : {total_waypoints}')
+    print(f'  Colliding waypoints   : {colliding_waypoints}')
+    print(f'  Waypoint collision rate: {100 * waypoint_collision_rate:.2f}%')
+    print(f'  Path collision rate    : {100 * path_collision_rate:.2f}%  '
+        f'(paths with ≥1 colliding waypoint)')
+
 
     # Save all configs and a success mask for downstream use
     all_starts = np.stack([r['start_norm'] for r in results])

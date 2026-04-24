@@ -300,7 +300,10 @@ if iter == 199:
 
 query_points = torch.cat(point).to('cpu').data.numpy()#np.asarray(point)
 # query_points = query_points[-2:]
-
+query_points = np.load("Evaluations/Arm/paths/path_000.npy")
+query_points = np.load("Evaluations/Arm/optimized_paths/path_000.npy").astype(np.float32)
+print(query_points)
+query_points = query_points/scale
 chain, mesh_list = build_chain()
 
 p_list = FK(query_points*scale, chain, mesh_list)
