@@ -253,6 +253,8 @@ womodel    = md.Model(modelPath, dataPath, 6, [0, 0.0, 0.0,0, 0.0, 0.0], device=
 pt='./Experiments/UR5/arm_04_03_15_51/Model_Epoch_04800_ValLoss_3.608041e-03.pt'
 
 pt = './Experiments/UR5/arm_04_22_10_30/Model_Epoch_05000_ValLoss_3.696065e-03.pt'
+pt = './Experiments/UR5/arm_04_24_18_56/Model_Epoch_04800_ValLoss_4.236388e-03.pt'
+pt = './Experiments/UR5/arm_04_24_19_17/Model_Epoch_05000_ValLoss_3.806535e-03.pt'
 print(pt)
 womodel.load(pt)#
 womodel.network.eval()
@@ -300,10 +302,11 @@ if iter == 199:
 
 query_points = torch.cat(point).to('cpu').data.numpy()#np.asarray(point)
 # query_points = query_points[-2:]
-query_points = np.load("Evaluations/Arm/paths/path_000.npy")
-query_points = np.load("Evaluations/Arm/optimized_paths/path_000.npy").astype(np.float32)
-print(query_points)
-query_points = query_points/scale
+# query_points = np.load("Evaluations/Arm/paths/path_000.npy")
+# query_points = np.load("Evaluations/Arm/optimized_paths/path_092.npy").astype(np.float32)
+# query_points = np.load("Evaluations/Arm/paths/path_003.npy").astype(np.float32)
+# print(query_points)
+# query_points = query_points/scale
 chain, mesh_list = build_chain()
 
 p_list = FK(query_points*scale, chain, mesh_list)

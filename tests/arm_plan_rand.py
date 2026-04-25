@@ -39,6 +39,15 @@ MESH_FILE   = f'./datasets/arm/UR5/realpc_scaled.off'
 CHECKPOINT  = ('./Experiments/UR5/arm_04_22_10_30/'
                'Model_Epoch_05000_ValLoss_3.696065e-03.pt')
 
+
+
+CHECKPOINT  = ('./Experiments/UR5/arm_04_24_18_56/'
+               'Model_Epoch_05000_ValLoss_4.250220e-03.pt') #1cm
+CHECKPOINT = ('./Experiments/UR5/arm_04_24_19_17/'
+                'Model_Epoch_05000_ValLoss_3.806535e-03.pt') #0cm
+CHECKPOINT = ('./Experiments/UR5/arm_04_24_19_38/'
+                'Model_Epoch_04700_ValLoss_2.905046e-03.pt') #2cm
+
 NUM_PAIRS   = 100            # how many start/goal pairs to plan
 SCALE       = math.pi / 0.5  # joint-space normalisation used throughout
 
