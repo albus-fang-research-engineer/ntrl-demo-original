@@ -135,7 +135,7 @@ def main():
         waypoints = torch.tensor(traj_rad, dtype=torch.float32, device=device)
 
         dist         = arm_collision_distance(waypoints, chain, mesh_list, kdtree)
-        in_collision = dist <= COLLISION_THRESHOLD
+        in_collision = dist <= COLLISION_THRESHOLD -0.01 # remove sphere inflation for optimization
 
         n_col        = int(in_collision.sum().item())
         min_dist     = float(dist.min().item())

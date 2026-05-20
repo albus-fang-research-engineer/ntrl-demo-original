@@ -8,3 +8,4 @@ normal.npy
 speed.npy
 sampled_points.npy
 unused/
+*.npy

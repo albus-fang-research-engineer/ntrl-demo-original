@@ -42,12 +42,22 @@ CHECKPOINT  = ('./Experiments/UR5/arm_04_22_10_30/'
 
 
 CHECKPOINT  = ('./Experiments/UR5/arm_04_24_18_56/'
-               'Model_Epoch_05000_ValLoss_4.250220e-03.pt') #1cm
+               'Model_Epoch_05000_ValLoss_4.250220e-03.pt') #1cm better
+# CHECKPOINT  = ('./Experiments/UR5/arm_05_19_14_37/'
+#                'Model_Epoch_05000_ValLoss_3.540057e-03.pt') #1cm retuned
+
 CHECKPOINT = ('./Experiments/UR5/arm_04_24_19_17/'
                 'Model_Epoch_05000_ValLoss_3.806535e-03.pt') #0cm
-CHECKPOINT = ('./Experiments/UR5/arm_04_24_19_38/'
-                'Model_Epoch_04700_ValLoss_2.905046e-03.pt') #2cm
+# CHECKPOINT = ('./Experiments/UR5/arm_04_24_19_38/'
+#                 'Model_Epoch_04700_ValLoss_2.905046e-03.pt') # old 2cm
+# CHECKPOINT = ('./Experiments/UR5/arm_05_19_19_30/'
+#                 'Model_Epoch_05000_ValLoss_2.971892e-03.pt') #2cm working!!!!!!!
+# CHECKPOINT = ('./Experiments/UR5/arm_05_19_16_38/'
+#                 'Model_Epoch_05000_ValLoss_2.666241e-03.pt') #2cm backup
+# CHECKPOINT = ('./Experiments/UR5/arm_05_20_08_41/'
+#                 'Model_Epoch_05000_ValLoss_3.224642e-03.pt') #best field
 
+INFLATION  = '0.6cm' 
 NUM_PAIRS   = 100            # how many start/goal pairs to plan
 SCALE       = math.pi / 0.5  # joint-space normalisation used throughout
 
@@ -66,10 +76,20 @@ CONV_THRESH     = 0.01              # ||goal - current|| < this → converged
 BASE = torch.tensor([[0, -0.5*math.pi, 0.0, -0.5*math.pi, 0.0, 0.0]],
                     dtype=torch.float32, device='cuda')   # robot home offset
 
-OUTPUT_DIR = 'Evaluations/Arm/paths'
+OUTPUT_DIR = f'Evaluations/Arm/paths_{INFLATION}'
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+def ee_path_length(path_rad: np.ndarray, chain) -> float:
+    """Sum of EE Cartesian displacements (metres) along the trajectory."""
+    q = torch.tensor(path_rad, dtype=torch.float32, device='cuda')
+    tg = chain.forward_kinematics(q, end_only=True)
+    ee = tg.get_matrix()[:, :3, 3]          # (T, 3)
+    return (ee[1:] - ee[:-1]).norm(dim=1).sum().item()
 
+def cspace_path_length(path_rad: np.ndarray) -> float:
+    """Sum of joint-space step norms (radians) along the trajectory."""
+    q = torch.tensor(path_rad, dtype=torch.float32, device='cuda')
+    return (q[1:] - q[:-1]).norm(dim=1).sum().item()
 # ================================================================== #
 #  1. Build FK chain + bounding-sphere mesh list
 # ================================================================== #
@@ -207,6 +227,9 @@ def sample_free_near_obstacle_configs(n_needed: int,
         dist = dist - OFFSET                          # subtract safety margin
 
         keep = (dist > 0) & (dist < MARGIN)
+        keep = (dist > 0.032) & (dist < 0.09)
+        keep = (dist > 0.05) & (dist < 0.09)
+        # keep = (dist > 0.08) & (dist < 0.12)
         configs = configs[keep]
 
         if configs.shape[0] == 0:
@@ -270,7 +293,7 @@ def mppi(model, XP: torch.Tensor):
 # ================================================================== #
 def main():
     # ── reproducibility ──────────────────────────────────────────────
-    SEED = 42
+    SEED = 36
     random.seed(SEED)
     np.random.seed(SEED)
     torch.manual_seed(SEED)
@@ -381,12 +404,32 @@ def main():
 
     #     if n_col > 0:
     #         colliding_paths += 1
+    # for i, r in enumerate(finished):
+    #     waypoints = torch.tensor(r['path_norm'], dtype=torch.float32, device='cuda')
+
+    #     dist = arm_collision_distance(waypoints, chain, mesh_list, kdtree)
+    #     dist = dist #- OFFSET
+
+    #     in_collision = dist <= 0
+
+    #     n_col = int(in_collision.sum().item())
+    #     colliding_waypoints += n_col
+    #     total_waypoints     += waypoints.shape[0]
+
+    #     if n_col > 0:
+    #         colliding_paths += 1
+    #         # Which waypoint indices are in collision
+    #         col_indices = in_collision.nonzero(as_tuple=True)[0].tolist()
+    #         print(f'  Trajectory {i:03d} (pair index {r["pair_idx"]:03d}): '
+    #             f'{n_col} colliding waypoint(s) at steps {col_indices}')
+    #         col_path = os.path.join(OUTPUT_DIR, f'path_{r["pair_idx"]:03d}_collision.npy')
+    #         np.save(col_path, r['path_rad'])
+    clean_results = []   # successful + zero collisions
+
     for i, r in enumerate(finished):
         waypoints = torch.tensor(r['path_norm'], dtype=torch.float32, device='cuda')
 
         dist = arm_collision_distance(waypoints, chain, mesh_list, kdtree)
-        dist = dist #- OFFSET
-
         in_collision = dist <= 0
 
         n_col = int(in_collision.sum().item())
@@ -395,12 +438,23 @@ def main():
 
         if n_col > 0:
             colliding_paths += 1
-            # Which waypoint indices are in collision
             col_indices = in_collision.nonzero(as_tuple=True)[0].tolist()
             print(f'  Trajectory {i:03d} (pair index {r["pair_idx"]:03d}): '
                 f'{n_col} colliding waypoint(s) at steps {col_indices}')
             col_path = os.path.join(OUTPUT_DIR, f'path_{r["pair_idx"]:03d}_collision.npy')
             np.save(col_path, r['path_rad'])
+        else:
+            # ── clean trajectory: compute and store lengths ──────────────
+            ee_len = ee_path_length(r['path_rad'], chain)
+            cs_len = cspace_path_length(r['path_rad'])
+            clean_results.append({
+                'pair_idx':    r['pair_idx'],
+                'ee_length':   ee_len,
+                'cs_length':   cs_len,
+                'iters':       r['iters'],
+            })
+            print(f'  Trajectory {i:03d} (pair index {r["pair_idx"]:03d}): '
+                f'clean  EE={ee_len:.4f}m  CS={cs_len:.4f}rad')
     waypoint_collision_rate = colliding_waypoints / total_waypoints
     path_collision_rate     = colliding_paths     / len(finished)
 
@@ -410,7 +464,22 @@ def main():
     print(f'  Waypoint collision rate: {100 * waypoint_collision_rate:.2f}%')
     print(f'  Path collision rate    : {100 * path_collision_rate:.2f}%  '
         f'(paths with ≥1 colliding waypoint)')
+    if clean_results:
+        pair_indices = np.array([c['pair_idx']  for c in clean_results])
+        ee_lengths   = np.array([c['ee_length'] for c in clean_results])
+        cs_lengths   = np.array([c['cs_length'] for c in clean_results])
 
+        np.save(os.path.join(OUTPUT_DIR, 'clean_pair_indices.npy'), pair_indices)
+        np.save(os.path.join(OUTPUT_DIR, 'clean_ee_lengths.npy'),   ee_lengths)
+        np.save(os.path.join(OUTPUT_DIR, 'clean_cs_lengths.npy'),   cs_lengths)
+
+        print(f'\n=== Clean trajectories (success + zero collision): {len(clean_results)}')
+        print(f'  EE  path length  — mean: {ee_lengths.mean():.4f}m   '
+            f'std: {ee_lengths.std():.4f}m   '
+            f'median: {np.median(ee_lengths):.4f}m')
+        print(f'  C-space length   — mean: {cs_lengths.mean():.4f}rad  '
+            f'std: {cs_lengths.std():.4f}rad  '
+            f'median: {np.median(cs_lengths):.4f}rad')
 
     # Save all configs and a success mask for downstream use
     all_starts = np.stack([r['start_norm'] for r in results])
@@ -420,6 +489,14 @@ def main():
     np.save(os.path.join(OUTPUT_DIR, 'starts_norm.npy'), all_starts)
     np.save(os.path.join(OUTPUT_DIR, 'goals_norm.npy'),  all_goals)
     np.save(os.path.join(OUTPUT_DIR, 'successes.npy'),   successes)
+    # Start/goal pairs for successful (converged) trajectories
+    successful_pairs_rad = np.stack([
+        np.stack([r['start_norm'] * SCALE, r['goal_norm'] * SCALE])
+        for r in results if r['success']
+    ])  # shape: (N_success, 2, 6) — radians
+    success_file_name = 'map2_mppi_success.npy'
+    np.save(os.path.join(OUTPUT_DIR, success_file_name), successful_pairs_rad)
+    print(f'Saved {len(successful_pairs_rad)} start/goal pairs to {success_file_name}')
     print(f'Results saved to {OUTPUT_DIR}/')
 
 
