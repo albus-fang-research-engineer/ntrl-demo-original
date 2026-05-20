@@ -20,7 +20,7 @@ sys.path.append('.')
 
 # ── Config ────────────────────────────────────────────────────────────────────
 DIR_0CM   = Path("Evaluations/Arm/paths_0cm")
-NEW_DIR   = Path("Evaluations/Arm/optimized_paths")   # ← change if needed
+NEW_DIR   = Path("Evaluations/Arm/optimized_paths_new")   # ← change if needed
 URDF_PATH = "datasets/arm/UR5/ur5e.urdf"
 END_LINK  = "wrist_3_link"
 LABEL_NEW = "optimized"
@@ -52,7 +52,7 @@ def main():
     print(f"0cm successful trajectories : {len(shared)}")
 
     # Keep only paths with no collision in 0cm (no path_***_collision.npy file)
-    # shared = [i for i in shared if (DIR_0CM / f"path_{i:03d}_collision.npy").exists()]
+    shared = [i for i in shared if not (DIR_0CM / f"path_{i:03d}_collision.npy").exists()]
     print(f"0cm collision-free trajectories : {len(shared)}")
     print(f"Indices: {shared}\n")
 

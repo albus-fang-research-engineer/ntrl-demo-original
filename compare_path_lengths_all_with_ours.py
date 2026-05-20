@@ -2,7 +2,7 @@ import numpy as np
 from scipy.stats import wilcoxon
 import torch
 import pytorch_kinematics as pk
-
+from pathlib import Path
 DIRS = {
     '0cm':  'Evaluations/Arm/paths_0cm',
     # '0.6cm': 'Evaluations/Arm/paths_0.6cm',
@@ -35,6 +35,8 @@ data  = {}
 for label, d in DIRS.items():
     successes = np.load(f'{d}/successes.npy')
     indices   = np.where(successes)[0]
+    indices   = [i for i in indices
+                 if not (Path(d) / f'path_{i:03d}_collision.npy').exists()]
     lengths   = {}
     for i in indices:
         path_rad = np.load(f'{d}/path_{i:03d}.npy')

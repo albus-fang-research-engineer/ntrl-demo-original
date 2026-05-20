@@ -47,17 +47,17 @@ CHECKPOINT  = ('./Experiments/UR5/arm_04_24_18_56/'
 #                'Model_Epoch_05000_ValLoss_3.540057e-03.pt') #1cm retuned
 
 CHECKPOINT = ('./Experiments/UR5/arm_04_24_19_17/'
-                'Model_Epoch_05000_ValLoss_3.806535e-03.pt') #0cm \ ours
+                'Model_Epoch_05000_ValLoss_3.806535e-03.pt') #0cm
 # CHECKPOINT = ('./Experiments/UR5/arm_04_24_19_38/'
 #                 'Model_Epoch_04700_ValLoss_2.905046e-03.pt') # old 2cm
-CHECKPOINT = ('./Experiments/UR5/arm_05_19_19_30/'
-                'Model_Epoch_05000_ValLoss_2.971892e-03.pt') #2cm working!!!!!!!
+# CHECKPOINT = ('./Experiments/UR5/arm_05_19_19_30/'
+#                 'Model_Epoch_05000_ValLoss_2.971892e-03.pt') #2cm working!!!!!!!
 # CHECKPOINT = ('./Experiments/UR5/arm_05_19_16_38/'
 #                 'Model_Epoch_05000_ValLoss_2.666241e-03.pt') #2cm backup
 # CHECKPOINT = ('./Experiments/UR5/arm_05_20_08_41/'
-#                 'Model_Epoch_05000_ValLoss_3.224642e-03.pt') #best field \ 0cm  
+#                 'Model_Epoch_05000_ValLoss_3.224642e-03.pt') #best field
 
-INFLATION  = 'try' 
+INFLATION  = 'ours' 
 NUM_PAIRS   = 100            # how many start/goal pairs to plan
 SCALE       = math.pi / 0.5  # joint-space normalisation used throughout
 
@@ -339,9 +339,14 @@ def main():
         # Pack as (1, 12): [start | goal]
         XP = torch.cat([starts[i:i+1], goals[i:i+1]], dim=1).clone()
 
+        # Warm-start CUDA + sync so the timer only measures planning work
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
         t0 = timer()
         with torch.no_grad():
             traj, iters = mppi(model, XP)
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
         elapsed = timer() - t0
 
         waypoints = torch.cat(traj).cpu().numpy()          # (T, 6) normalised
@@ -358,14 +363,15 @@ def main():
               f'dist={final_dist:.4f}  t={elapsed:.2f}s  [{status}]')
 
         results.append({
-            'pair_idx':    i, 
-            'start_norm':  starts[i].cpu().numpy(),
-            'goal_norm':   goals[i].cpu().numpy(),
-            'path_norm':   waypoints,
-            'path_rad':    waypoints_rad,
-            'success':     success,
-            'iters':       iters + 1,
-            'final_dist':  final_dist,
+            'pair_idx':       i,
+            'start_norm':     starts[i].cpu().numpy(),
+            'goal_norm':      goals[i].cpu().numpy(),
+            'path_norm':      waypoints,
+            'path_rad':       waypoints_rad,
+            'success':        success,
+            'iters':          iters + 1,
+            'final_dist':     final_dist,
+            'planning_time':  elapsed,
         })
 
         out_path = os.path.join(OUTPUT_DIR, f'path_{i:03d}.npy')
@@ -378,7 +384,7 @@ def main():
     # ---------------------------------------------------------------- #
     print(f'\n=== Done. Success: {success_count}/{NUM_PAIRS} '
           f'({100*success_count/NUM_PAIRS:.1f}%)')
-    
+
     # ---------------------------------------------------------------- #
     # Collision rate over finished (converged) trajectories
     # ---------------------------------------------------------------- #
@@ -389,41 +395,6 @@ def main():
     colliding_waypoints = 0
     colliding_paths   = 0
 
-    # for r in finished:
-    #     # path_norm is (T, 6) — already normalised
-    #     waypoints = torch.tensor(r['path_norm'], dtype=torch.float32, device='cuda')
-
-    #     dist = arm_collision_distance(waypoints, chain, mesh_list, kdtree)  # (T,)
-    #     dist = dist #- OFFSET + 0.002  # apply safety offset, same as during sampling
-
-    #     in_collision = dist <= 0  # True where arm penetrates obstacle
-
-    #     n_col = int(in_collision.sum().item())
-    #     colliding_waypoints += n_col
-    #     total_waypoints     += waypoints.shape[0]
-
-    #     if n_col > 0:
-    #         colliding_paths += 1
-    # for i, r in enumerate(finished):
-    #     waypoints = torch.tensor(r['path_norm'], dtype=torch.float32, device='cuda')
-
-    #     dist = arm_collision_distance(waypoints, chain, mesh_list, kdtree)
-    #     dist = dist #- OFFSET
-
-    #     in_collision = dist <= 0
-
-    #     n_col = int(in_collision.sum().item())
-    #     colliding_waypoints += n_col
-    #     total_waypoints     += waypoints.shape[0]
-
-    #     if n_col > 0:
-    #         colliding_paths += 1
-    #         # Which waypoint indices are in collision
-    #         col_indices = in_collision.nonzero(as_tuple=True)[0].tolist()
-    #         print(f'  Trajectory {i:03d} (pair index {r["pair_idx"]:03d}): '
-    #             f'{n_col} colliding waypoint(s) at steps {col_indices}')
-    #         col_path = os.path.join(OUTPUT_DIR, f'path_{r["pair_idx"]:03d}_collision.npy')
-    #         np.save(col_path, r['path_rad'])
     clean_results = []   # successful + zero collisions
 
     for i, r in enumerate(finished):
@@ -448,13 +419,15 @@ def main():
             ee_len = ee_path_length(r['path_rad'], chain)
             cs_len = cspace_path_length(r['path_rad'])
             clean_results.append({
-                'pair_idx':    r['pair_idx'],
-                'ee_length':   ee_len,
-                'cs_length':   cs_len,
-                'iters':       r['iters'],
+                'pair_idx':       r['pair_idx'],
+                'ee_length':      ee_len,
+                'cs_length':      cs_len,
+                'iters':          r['iters'],
+                'planning_time':  r['planning_time'],
             })
             print(f'  Trajectory {i:03d} (pair index {r["pair_idx"]:03d}): '
-                f'clean  EE={ee_len:.4f}m  CS={cs_len:.4f}rad')
+                f'clean  EE={ee_len:.4f}m  CS={cs_len:.4f}rad  t={r["planning_time"]:.2f}s')
+
     waypoint_collision_rate = colliding_waypoints / total_waypoints
     path_collision_rate     = colliding_paths     / len(finished)
 
@@ -465,13 +438,15 @@ def main():
     print(f'  Path collision rate    : {100 * path_collision_rate:.2f}%  '
         f'(paths with ≥1 colliding waypoint)')
     if clean_results:
-        pair_indices = np.array([c['pair_idx']  for c in clean_results])
-        ee_lengths   = np.array([c['ee_length'] for c in clean_results])
-        cs_lengths   = np.array([c['cs_length'] for c in clean_results])
+        pair_indices = np.array([c['pair_idx']        for c in clean_results])
+        ee_lengths   = np.array([c['ee_length']       for c in clean_results])
+        cs_lengths   = np.array([c['cs_length']       for c in clean_results])
+        clean_times  = np.array([c['planning_time']   for c in clean_results])
 
-        np.save(os.path.join(OUTPUT_DIR, 'clean_pair_indices.npy'), pair_indices)
-        np.save(os.path.join(OUTPUT_DIR, 'clean_ee_lengths.npy'),   ee_lengths)
-        np.save(os.path.join(OUTPUT_DIR, 'clean_cs_lengths.npy'),   cs_lengths)
+        np.save(os.path.join(OUTPUT_DIR, 'clean_pair_indices.npy'),    pair_indices)
+        np.save(os.path.join(OUTPUT_DIR, 'clean_ee_lengths.npy'),      ee_lengths)
+        np.save(os.path.join(OUTPUT_DIR, 'clean_cs_lengths.npy'),      cs_lengths)
+        np.save(os.path.join(OUTPUT_DIR, 'clean_planning_times.npy'),  clean_times)
 
         print(f'\n=== Clean trajectories (success + zero collision): {len(clean_results)}')
         print(f'  EE  path length  — mean: {ee_lengths.mean():.4f}m   '
@@ -480,15 +455,38 @@ def main():
         print(f'  C-space length   — mean: {cs_lengths.mean():.4f}rad  '
             f'std: {cs_lengths.std():.4f}rad  '
             f'median: {np.median(cs_lengths):.4f}rad')
+        print(f'  Planning time    — mean: {clean_times.mean():.3f}s   '
+            f'std: {clean_times.std():.3f}s   '
+            f'median: {np.median(clean_times):.3f}s')
 
-    # Save all configs and a success mask for downstream use
-    all_starts = np.stack([r['start_norm'] for r in results])
-    all_goals  = np.stack([r['goal_norm']  for r in results])
-    successes  = np.array([r['success']    for r in results])
+    # Save all configs, success mask, and planning times for downstream use
+    all_starts      = np.stack([r['start_norm']    for r in results])
+    all_goals       = np.stack([r['goal_norm']     for r in results])
+    successes       = np.array([r['success']       for r in results])
+    planning_times  = np.array([r['planning_time'] for r in results], dtype=np.float64)
+    iters_per_pair  = np.array([r['iters']         for r in results], dtype=np.int32)
 
-    np.save(os.path.join(OUTPUT_DIR, 'starts_norm.npy'), all_starts)
-    np.save(os.path.join(OUTPUT_DIR, 'goals_norm.npy'),  all_goals)
-    np.save(os.path.join(OUTPUT_DIR, 'successes.npy'),   successes)
+    np.save(os.path.join(OUTPUT_DIR, 'starts_norm.npy'),     all_starts)
+    np.save(os.path.join(OUTPUT_DIR, 'goals_norm.npy'),      all_goals)
+    np.save(os.path.join(OUTPUT_DIR, 'successes.npy'),       successes)
+    np.save(os.path.join(OUTPUT_DIR, 'planning_times.npy'),  planning_times)
+    np.save(os.path.join(OUTPUT_DIR, 'iters_per_pair.npy'),  iters_per_pair)
+
+    # Planning-time summary (over successful pairs, since failures hit MPPI_STEPS)
+    if success_count > 0:
+        succ_mask  = successes
+        succ_times = planning_times[succ_mask]
+        print(f'\n=== Planning time (over {success_count} successful pairs) ===')
+        print(f'  mean:   {succ_times.mean():.3f}s')
+        print(f'  std:    {succ_times.std():.3f}s')
+        print(f'  median: {np.median(succ_times):.3f}s')
+        print(f'  min:    {succ_times.min():.3f}s')
+        print(f'  max:    {succ_times.max():.3f}s')
+    print(f'\n=== Planning time (all {NUM_PAIRS} pairs, incl. failures) ===')
+    print(f'  mean:   {planning_times.mean():.3f}s')
+    print(f'  std:    {planning_times.std():.3f}s')
+    print(f'  median: {np.median(planning_times):.3f}s')
+
     # Start/goal pairs for successful (converged) trajectories
     successful_pairs_rad = np.stack([
         np.stack([r['start_norm'] * SCALE, r['goal_norm'] * SCALE])

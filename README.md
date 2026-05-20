@@ -8,3 +8,15 @@ This is a minimal example.
 4. run `pip install scipy` inside the container to install the KD-tree dependency
 5. run `python dataprocessing/preprocess.py --config configs/gibson.txt ` to sample training data
 6. run `python train/train_gib.py` to start the training.
+
+
+
+
+
+```
+export CUDA_HOME=/usr/local/cuda
+export PATH=$CUDA_HOME/bin:$PATH
+export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
+export LIBRARY_PATH=$CUDA_HOME/lib64
+export CPATH=$CUDA_HOME/include
+```

@@ -21,7 +21,7 @@ sys.path.append('.')
 # ------------------------------------------------------------------ #
 # Paths
 # ------------------------------------------------------------------ #
-IN_DIR     = Path("Evaluations/Arm/optimized_paths")
+IN_DIR     = Path("Evaluations/Arm/optimized_paths_new")
 MESH_FILE  = "./datasets/arm/UR5/realpc_scaled.off"
 URDF_PATH  = "datasets/arm/UR5/ur5e.urdf"
 SPHERE_DIR = "datasets/arm/UR5/meshes/sphere/sphere"
