@@ -627,7 +627,7 @@ def arm_append_list(X_list, Y_list, N_list,
         obs_distance0, normal0 = arm_obstacle_distance(th_batch0, chain, mesh_list, kdtree, v_obs) #- 0.01
         #print(torch.min(obs_distance0))
         #print(torch.max(obs_distance0))
-        obs_distance0 = obs_distance0#-0.02
+        obs_distance0 = obs_distance0 #-0.018
 
         where_d          =  (obs_distance0 > 0) & (obs_distance0 < margin) #\
                             #& (torch.norm(normal0,dim=1) > 0.1)
@@ -638,7 +638,7 @@ def arm_append_list(X_list, Y_list, N_list,
 
         th_batch1 = scale*x1
         obs_distance1, normal1 = arm_obstacle_distance(th_batch1, chain, mesh_list, kdtree, v_obs) #- 0.01
-        obs_distance1 = obs_distance1#-0.02
+        obs_distance1 = obs_distance1 #-0.018
 
         # where_d          =    (torch.norm(normal1,dim=1) > 0.1)
         # x0 = x0[where_d]
@@ -946,8 +946,8 @@ def sample_speed(path, numsamples, dim):
         velocity_max = 1
         
         
-        margin = limit/10. + 0.02
-        offset = margin/10.0 
+        margin = limit/10. + 0.015
+        offset = margin/10.0 +0.002
 
         v, f = igl.read_triangle_mesh(input_file)
         z = np.zeros(3)
