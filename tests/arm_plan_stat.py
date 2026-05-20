@@ -218,12 +218,12 @@ def MPPI(womodel, XP):
         cost_combined = 10*cost_start + cost_goal
         cost = cost_combined
         # --- Print diagnostics ---
-        print(f"[iter {iter:03d}] "
-              f"cost_start: min={cost_start.min():.4f} max={cost_start.max():.4f} mean={cost_start.mean():.4f} | "
-              f"cost_goal:  min={cost_goal.min():.4f}  max={cost_goal.max():.4f}  mean={cost_goal.mean():.4f} | "
-              f"cost_combined: min={cost_combined.min():.4f} max={cost_combined.max():.4f} | "
-              f"best_sample={cost_combined.argmin().item()} | "
-              f"dist_to_goal={torch.norm(XP[:,6:12]-XP[:,0:6]):.4f}")
+        # print(f"[iter {iter:03d}] "
+        #       f"cost_start: min={cost_start.min():.4f} max={cost_start.max():.4f} mean={cost_start.mean():.4f} | "
+        #       f"cost_goal:  min={cost_goal.min():.4f}  max={cost_goal.max():.4f}  mean={cost_goal.mean():.4f} | "
+        #       f"cost_combined: min={cost_combined.min():.4f} max={cost_combined.max():.4f} | "
+        #       f"best_sample={cost_combined.argmin().item()} | "
+        #       f"dist_to_goal={torch.norm(XP[:,6:12]-XP[:,0:6]):.4f}")
         
         weight = torch.softmax(-50*cost, dim=0)
         
@@ -280,11 +280,15 @@ XP=torch.tensor([[0.3, -0.7, -1.0, 0.5*np.pi,0.5*np.pi,0.0,
 XP=torch.tensor([[0.3, -0.7, -1.0, 0.5*np.pi,0.5*np.pi,0.0,
                     0.38, -0.26, -0.65, 0.2*np.pi,0.5*np.pi,0.0]]).cuda()
 
-   
+
 BASE=torch.tensor([[0, -0.5*np.pi, 0.0, -0.5*np.pi,0.0,0.0,
                         0, -0.5*np.pi, 0.0, -0.5*np.pi,0.0,0.0]]).cuda()
 #XP = start_goal
 XP = XP+BASE #Variable(Tensor(XP)).to('cuda').unsqueeze(0)
+XP = torch.tensor([[0.3, -0.7-0.5*np.pi, -1.0, 0.0, 0.5*np.pi, 0.0,
+                    np.deg2rad(-69.26)+np.pi/2, np.deg2rad(-115.23), np.deg2rad(-22.77), np.deg2rad(-48.35), np.deg2rad(84.42), 0.0]], dtype=torch.float32).cuda()
+XP = torch.tensor([[0.6, -0.7-0.5*np.pi, -0.86, 0.0, 0.5*np.pi, 0.0,
+                    np.deg2rad(-99.26)+np.pi/2, np.deg2rad(-115.23), np.deg2rad(-22.77), np.deg2rad(-48.35), np.deg2rad(84.42), 0.0]], dtype=torch.float32).cuda()
 XP = XP/scale
 
 for ii in range(5):
@@ -301,12 +305,29 @@ if iter == 199:
     #continue
 
 query_points = torch.cat(point).to('cpu').data.numpy()#np.asarray(point)
-# query_points = query_points[-2:]
-# query_points = np.load("Evaluations/Arm/paths/path_000.npy")
-# query_points = np.load("Evaluations/Arm/optimized_paths/path_092.npy").astype(np.float32)
-# query_points = np.load("Evaluations/Arm/paths/path_003.npy").astype(np.float32)
-# print(query_points)
-# query_points = query_points/scale
+# query_points = np.load("Evaluations/Arm/paths_0cm/path_003_collision.npy").astype(np.float32)
+# query_points = np.load("Evaluations/Arm/paths_0cm/path_004_collision.npy").astype(np.float32)
+# query_points = np.load("Evaluations/Arm/paths_0cm/path_060_collision.npy").astype(np.float32)
+# query_points = np.load("optimized_joint_trajectory_0cm_path60.npy").astype(np.float32)
+# query_points = np.load("Evaluations/Arm/optimized_paths/path_009.npy").astype(np.float32)
+# query_points = np.load("path_045.npy").astype(np.float32)
+# query_points = np.load("optimized_trajectory_demo/path_003_collision.npy")
+# query_points = np.load("optimized_trajectory_demo/optimized_joint_trajectory_0cm_path3.npy").astype(np.float32)
+# query_points = np.load("optimized_joint_trajectory_0cm_path003_tuning.npy").astype(np.float32)
+query_points = np.load("Evaluations/Arm/ur5_joint_trajectory_demo.npy").astype(np.float32)
+query_points = np.load("optimized_joint_trajectory_demo.npy").astype(np.float32)
+
+# query_points[18:24, 1] -= 0.12 
+# query_points[20:24, 1] -=0.05
+# query_points[23,1] -= 0.07
+# query_points[24,3] -= 0.36
+query_points[24,2] -= 0.16
+# query_points[24,1] += 0.16
+np.save("optimized_joint_trajectory_demo_optimized.npy",query_points)
+# query_points = query_points[23:26]
+query_points = query_points/scale
+print(query_points)
+
 chain, mesh_list = build_chain()
 
 p_list = FK(query_points*scale, chain, mesh_list)
@@ -316,7 +337,7 @@ p_list = FK(query_points*scale, chain, mesh_list)
 points = torch.cat(p_list,dim=1)
 import os
 os.makedirs('Evaluations/Arm', exist_ok=True)
-np.save('Evaluations/Arm/ur5_joint_trajectory.npy', query_points*scale)
+np.save('Evaluations/Arm/ur5_joint_trajectory_demo.npy', query_points*scale)
 
 color1 = np.random.randint(256, size=(1, 4))
 color1[0,0] = 50
@@ -345,7 +366,7 @@ points = points.detach().cpu().numpy()
 print(points.shape)
 file_path = 'datasets/arm/'
 mesh_name = 'realpc_scaled.off'
-
+# mesh_name = 'fused_all_denoise_scaled.off'
 path = file_path + 'UR5' + '/' + mesh_name
 
 centers = points[...,0:3]

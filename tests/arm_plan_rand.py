@@ -47,17 +47,17 @@ CHECKPOINT  = ('./Experiments/UR5/arm_04_24_18_56/'
 #                'Model_Epoch_05000_ValLoss_3.540057e-03.pt') #1cm retuned
 
 CHECKPOINT = ('./Experiments/UR5/arm_04_24_19_17/'
-                'Model_Epoch_05000_ValLoss_3.806535e-03.pt') #0cm
+                'Model_Epoch_05000_ValLoss_3.806535e-03.pt') #0cm \ ours
 # CHECKPOINT = ('./Experiments/UR5/arm_04_24_19_38/'
 #                 'Model_Epoch_04700_ValLoss_2.905046e-03.pt') # old 2cm
-# CHECKPOINT = ('./Experiments/UR5/arm_05_19_19_30/'
-#                 'Model_Epoch_05000_ValLoss_2.971892e-03.pt') #2cm working!!!!!!!
+CHECKPOINT = ('./Experiments/UR5/arm_05_19_19_30/'
+                'Model_Epoch_05000_ValLoss_2.971892e-03.pt') #2cm working!!!!!!!
 # CHECKPOINT = ('./Experiments/UR5/arm_05_19_16_38/'
 #                 'Model_Epoch_05000_ValLoss_2.666241e-03.pt') #2cm backup
 # CHECKPOINT = ('./Experiments/UR5/arm_05_20_08_41/'
-#                 'Model_Epoch_05000_ValLoss_3.224642e-03.pt') #best field
+#                 'Model_Epoch_05000_ValLoss_3.224642e-03.pt') #best field \ 0cm  
 
-INFLATION  = '0.6cm' 
+INFLATION  = 'try' 
 NUM_PAIRS   = 100            # how many start/goal pairs to plan
 SCALE       = math.pi / 0.5  # joint-space normalisation used throughout
 
