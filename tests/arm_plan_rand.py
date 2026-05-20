@@ -38,24 +38,24 @@ MESH_FILE   = f'./datasets/arm/UR5/realpc_scaled.off'
 
 CHECKPOINT  = ('./Experiments/UR5/arm_04_22_10_30/'
                'Model_Epoch_05000_ValLoss_3.696065e-03.pt')
-
-
-
-CHECKPOINT  = ('./Experiments/UR5/arm_04_24_18_56/'
-               'Model_Epoch_05000_ValLoss_4.250220e-03.pt') #1cm better
-# CHECKPOINT  = ('./Experiments/UR5/arm_05_19_14_37/'
-#                'Model_Epoch_05000_ValLoss_3.540057e-03.pt') #1cm retuned
-
-CHECKPOINT = ('./Experiments/UR5/arm_04_24_19_17/'
-                'Model_Epoch_05000_ValLoss_3.806535e-03.pt') #0cm
 # CHECKPOINT = ('./Experiments/UR5/arm_04_24_19_38/'
 #                 'Model_Epoch_04700_ValLoss_2.905046e-03.pt') # old 2cm
-# CHECKPOINT = ('./Experiments/UR5/arm_05_19_19_30/'
-#                 'Model_Epoch_05000_ValLoss_2.971892e-03.pt') #2cm working!!!!!!!
 # CHECKPOINT = ('./Experiments/UR5/arm_05_19_16_38/'
 #                 'Model_Epoch_05000_ValLoss_2.666241e-03.pt') #2cm backup
+# CHECKPOINT  = ('./Experiments/UR5/arm_05_19_14_37/'
+#                'Model_Epoch_05000_ValLoss_3.540057e-03.pt') #1cm retuned
+#######################     Tuned    ##########################
+CHECKPOINT  = ('./Experiments/UR5/arm_04_24_18_56/'
+               'Model_Epoch_05000_ValLoss_4.250220e-03.pt') #1cm better
+
+CHECKPOINT = ('./Experiments/UR5/arm_04_24_19_17/'
+                'Model_Epoch_05000_ValLoss_3.806535e-03.pt') #0cm \ ours nominal
+
+# CHECKPOINT = ('./Experiments/UR5/arm_05_19_19_30/'
+#                 'Model_Epoch_05000_ValLoss_2.971892e-03.pt') #2cm working!!!!!!!
+
 # CHECKPOINT = ('./Experiments/UR5/arm_05_20_08_41/'
-#                 'Model_Epoch_05000_ValLoss_3.224642e-03.pt') #best field
+#                 'Model_Epoch_05000_ValLoss_3.224642e-03.pt') #baseline
 
 INFLATION  = 'ours' 
 NUM_PAIRS   = 100            # how many start/goal pairs to plan
