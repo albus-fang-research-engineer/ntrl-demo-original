@@ -20,11 +20,11 @@ sys.path.append('.')
 
 # ── Config ────────────────────────────────────────────────────────────────────
 DIR_0CM   = Path("Evaluations/Arm/paths_0cm")
-NEW_DIR   = Path("Evaluations/Arm/optimized_paths_new")   # ← change if needed
+NEW_DIR   = Path("Evaluations/Arm/optimized_paths_speed_up_tuning")   # ← change if needed
 URDF_PATH = "datasets/arm/UR5/ur5e.urdf"
 END_LINK  = "wrist_3_link"
 LABEL_NEW = "optimized"
-
+# NOMINAL_DIR =Path("Evaluations/Arm/paths_ours")
 # ── FK chain ──────────────────────────────────────────────────────────────────
 def build_chain():
     chain = pk.build_serial_chain_from_urdf(
@@ -55,7 +55,7 @@ def main():
     shared = [i for i in shared if not (DIR_0CM / f"path_{i:03d}_collision.npy").exists()]
     print(f"0cm collision-free trajectories : {len(shared)}")
     print(f"Indices: {shared}\n")
-
+    # shared = [i for i in shared if not (NOMINAL_DIR / f"path_{i:03d}_collision.npy").exists()]
     data = {'0cm': {}, LABEL_NEW: {}}
 
     for i in shared:

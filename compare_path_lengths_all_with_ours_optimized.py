@@ -6,10 +6,10 @@ from pathlib import Path
 
 DIRS = {
     '0cm':  'Evaluations/Arm/paths_0cm',
-    # '0.6cm': 'Evaluations/Arm/paths_0.6cm',
     '1cm':  'Evaluations/Arm/paths_1cm',
     '2cm':  'Evaluations/Arm/paths_2cm',
-    'ours': 'Evaluations/Arm/optimized_paths_new_backup',
+    # 'ours': 'Evaluations/Arm/optimized_paths_new_backup',
+    'ours': 'Evaluations/Arm/optimized_paths_speed_up_tuning',
 }
 
 OURS_LABEL = 'ours'

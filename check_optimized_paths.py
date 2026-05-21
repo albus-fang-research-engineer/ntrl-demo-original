@@ -21,7 +21,7 @@ sys.path.append('.')
 # ------------------------------------------------------------------ #
 # Paths
 # ------------------------------------------------------------------ #
-IN_DIR     = Path("Evaluations/Arm/optimized_paths_new")
+IN_DIR     = Path("Evaluations/Arm/optimized_paths_speed_up_tuning")
 MESH_FILE  = "./datasets/arm/UR5/realpc_scaled.off"
 URDF_PATH  = "datasets/arm/UR5/ur5e.urdf"
 SPHERE_DIR = "datasets/arm/UR5/meshes/sphere/sphere"
@@ -135,7 +135,7 @@ def main():
         waypoints = torch.tensor(traj_rad, dtype=torch.float32, device=device)
 
         dist         = arm_collision_distance(waypoints, chain, mesh_list, kdtree)
-        in_collision = dist <= COLLISION_THRESHOLD -0.01 # remove sphere inflation for optimization
+        in_collision = dist <= COLLISION_THRESHOLD 
 
         n_col        = int(in_collision.sum().item())
         min_dist     = float(dist.min().item())
