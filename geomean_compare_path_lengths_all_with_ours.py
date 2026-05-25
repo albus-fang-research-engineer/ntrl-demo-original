@@ -3,13 +3,13 @@ from scipy.stats import wilcoxon
 import torch
 import pytorch_kinematics as pk
 from pathlib import Path
+from scipy.stats import wilcoxon, gmean
 DIRS = {
     '0cm':  'Evaluations/Arm/paths_0cm',
     '1cm':  'Evaluations/Arm/paths_1cm',
     '2cm':  'Evaluations/Arm/paths_2cm',
     # 'ours': 'Evaluations/Arm/optimized_paths_new_backup',
-    # 'ours': 'Evaluations/Arm/optimized_paths_speed_up_tuning',
-    'ours': 'Evaluations/Arm/optimized_paths_working',
+    'ours': 'Evaluations/Arm/optimized_paths_speed_up_tuning',
 }
 
 OURS_LABEL = 'ours'
@@ -70,7 +70,7 @@ for label in labels[1:]:
     shared &= set(data[label].keys())
 shared = sorted(shared)
 print(f'\nShared successful pairs: {len(shared)}')
-print(f'Shared indices: {shared}')
+
 # ── Build aligned arrays ───────────────────────────────────────────────────────
 cs = {label: np.array([data[label][i]['cs'] for i in shared]) for label in DIRS}
 ee = {label: np.array([data[label][i]['ee'] for i in shared]) for label in DIRS}
@@ -79,17 +79,19 @@ ee = {label: np.array([data[label][i]['ee'] for i in shared]) for label in DIRS}
 BASELINE = '0cm'
 for metric_name, metric in [('C-space (rad)', cs), ('EE (m)', ee)]:
     print(f'\n── {metric_name} path length (ratio vs {BASELINE}) ──────────────────────')
-    print(f'  {"Pipeline":<8}  {"mean ratio":>12}  {"std":>8}  {"median":>8}  {"p-value vs " + BASELINE:>16}')
+    print(f'  {"Pipeline":<8}  {"mean":>8}  {"std":>8}  {"gmean":>8}  {"median":>8}  '
+          f'{"win%":>6}  {"p-value":>12}')
     for label in DIRS:
         ratio = metric[label] / metric[BASELINE]
+        gm    = gmean(ratio)
+        win   = (ratio < 1).mean() * 100
         if label == BASELINE:
-            print(f'  {label:<8}  {ratio.mean():>12.4f}  {ratio.std():>8.4f}  '
-                  f'{np.median(ratio):>8.4f}  {"(baseline)":>16}')
+            print(f'  {label:<8}  {ratio.mean():>8.4f}  {ratio.std():>8.4f}  {gm:>8.4f}  '
+                  f'{np.median(ratio):>8.4f}  {win:>5.1f}%  {"(baseline)":>12}')
         else:
             _, p = wilcoxon(metric[BASELINE], metric[label])
-            print(f'  {label:<8}  {ratio.mean():>12.4f}  {ratio.std():>8.4f}  '
-                  f'{np.median(ratio):>8.4f}  {p:>16.4e}')
-
+            print(f'  {label:<8}  {ratio.mean():>8.4f}  {ratio.std():>8.4f}  {gm:>8.4f}  '
+                  f'{np.median(ratio):>8.4f}  {win:>5.1f}%  {p:>12.4e}')
     print(f'\n── Raw {metric_name} lengths over shared pairs ───────────────────')
     for label in DIRS:
         print(f'  {label:<8}  mean={metric[label].mean():.4f}  '
