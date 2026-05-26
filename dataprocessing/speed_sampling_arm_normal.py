@@ -563,7 +563,7 @@ def arm_append_list(X_list, Y_list, N_list,
         th_batch0 = scale * x0
         # Risk-sensitive (CVaR of per-pair VaR) clearance per config
         obs_distance0, normal0 = arm_obstacle_distance(th_batch0, chain, mesh_list, kdtree, v_obs)
-        obs_distance0 = obs_distance0
+        obs_distance0 = obs_distance0 -0.018
 
         where_d = (obs_distance0 > 0) & (obs_distance0 < margin)
         x0 = x0[where_d]
@@ -573,7 +573,7 @@ def arm_append_list(X_list, Y_list, N_list,
 
         th_batch1 = scale * x1
         obs_distance1, normal1 = arm_obstacle_distance(th_batch1, chain, mesh_list, kdtree, v_obs)
-        obs_distance1 = obs_distance1
+        obs_distance1 = obs_distance1 -0.018
 
         y1 = obs_distance1
         n1 = normal1
