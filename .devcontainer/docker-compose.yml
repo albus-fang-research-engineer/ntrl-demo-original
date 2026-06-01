@@ -16,7 +16,7 @@ services:
       NVIDIA_DRIVER_CAPABILITIES: all
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
-      - /home/albusfang/Albus/ntrl-demo-original:/workspace
+      - ${HOME}/ntrl-demo-original:/workspace
       - /usr/lib/x86_64-linux-gnu/:/glu
       # - /home/n/.local:/.local
     runtime: nvidia

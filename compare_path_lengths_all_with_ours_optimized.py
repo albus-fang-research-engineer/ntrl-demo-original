@@ -9,7 +9,9 @@ DIRS = {
     '2cm':  'Evaluations/Arm/paths_2cm',
     # 'ours': 'Evaluations/Arm/optimized_paths_new_backup',
     # 'ours': 'Evaluations/Arm/optimized_paths_speed_up_tuning',
-    'ours': 'Evaluations/Arm/optimized_paths_working',
+    # 'ours': 'Evaluations/Arm/optimized_paths_working',
+
+    'ours': 'Evaluations/Arm/optimized_paths_working_variable_sigma',
 }
 
 OURS_LABEL = 'ours'
